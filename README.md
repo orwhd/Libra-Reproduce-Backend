@@ -1,7 +1,5 @@
 # Libra Reproduce Backend — Pure-Backend Multi-Agent Scientific Paper Reproduction Harness
 
-**WHALES Lab Coding / Design Test — Project 2 Pure-Backend Deliverable (Headless CLI + OpenAPI 3.1 V2 + Part II Option A Figure)**
-
 `libra-reproduce-backend` is a standalone, **harness-engineered multi-agent LLM framework** for empirical scientific paper reproduction. Designed specifically for **Project 2 (T1 — Paper Reproduction)** of the Coding / Design Test, it automates data auditing, sandboxed Python experimentation, cross-agent methodological debate, counterfactual robustness checks, independent verification (`EvidenceGate`), and publication-ready **PDF & Word (`.docx`) report generation**—without any frontend dependency.
 
 ---
