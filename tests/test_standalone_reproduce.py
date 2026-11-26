@@ -219,6 +219,35 @@ async def test_standalone_openapi_v2_simulation_idempotency_and_sse_resume() -> 
         ]
         assert [e["seq"] for e in resumed_events] == list(range(6, len(events_all) + 1))
 
+        # Verify initial 6 role classes expanded dynamically via Main Agent multi-instance spawning
+        snap_end = (await client.get(f"/api/runs/{run_id}/snapshot")).json()
+        validate(snap_end["canvas"], canvas_schema)
+        personas_end = snap_end["canvas"]["personas"]
+        assert len(personas_end) >= 9
+        assert sum(1 for p in personas_end if p["is_main"]) == 1
+        assert sum(1 for p in personas_end if p["role"] == "analysis") >= 2
+        assert sum(1 for p in personas_end if p["role"] == "data") >= 2
+        assert all(p["state"] == "idle" for p in personas_end)
+
+        # User follow-up requesting dynamic spawning of additional specialist instances
+        dyn_resp = await client.post(
+            f"/api/runs/{run_id}/chat",
+            json={
+                "request_id": "req-standalone-dyn-003",
+                "text": "Please dynamically spawn 2 analysis agents to double check subgroup robustness",
+                "selected_context": {"kind": "agent", "id": "persona_main"},
+            },
+        )
+        assert dyn_resp.status_code == 202
+        for _ in range(120):
+            cur2 = (await client.get(f"/api/runs/{run_id}")).json()
+            if cur2["status"] in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.1)
+        assert cur2["status"] == "completed"
+        snap_after_dyn = (await client.get(f"/api/runs/{run_id}/snapshot")).json()
+        assert sum(1 for p in snap_after_dyn["canvas"]["personas"] if p["role"] == "analysis") >= 4
+
         rep_status = (await client.get(f"/api/runs/{run_id}/report")).json()
         assert rep_status["status"] == "ready"
         assert len(rep_status["artifact_ids"]) == 2

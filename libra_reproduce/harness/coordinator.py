@@ -33,6 +33,7 @@ from ..storage.artifact_store import ArtifactStore
 from ..storage.db import jdumps, jloads, utc_now_iso
 from ..storage.event_store import EventStore
 from .collaboration_manager import CollaborationManager
+from .persona_catalog import SPECIALIST_ROLES, build_dynamic_persona
 from .scheduler import ResourceScheduler
 from .sdk_adapter import SDKAdapter
 
@@ -72,7 +73,7 @@ class ResearchCoordinator:
 
         def _mut(conn: sqlite3.Connection, seq: int) -> None:
             row = conn.execute(
-                "SELECT state, runtime_agent_id FROM reproduce_personas WHERE run_id = ? AND persona_id = ?",
+                "SELECT state, runtime_agent_id, label FROM reproduce_personas WHERE run_id = ? AND persona_id = ?",
                 (run_id, persona_id),
             ).fetchone()
             prev_state = row["state"] if row else "idle"
@@ -85,6 +86,7 @@ class ResearchCoordinator:
             )
 
         with_prev = self._get_persona_state(run_id, persona_id)
+        display_label = str(with_prev.get("label") or persona_id.replace("persona_", "").replace("_", " #").title())
         if runtime_agent_id and not with_prev.get("runtime_agent_id"):
             self.store.append_event(
                 run_id,
@@ -93,8 +95,14 @@ class ResearchCoordinator:
                 target_ids=[persona_id],
                 subject=EventSubject(kind="agent", id=persona_id),
                 status="active",
-                summary=f"Bound runtime execution session for {persona_id.replace('persona_', '').capitalize()}.",
-                payload={"persona_id": persona_id, "runtime_agent_id": runtime_agent_id},
+                summary=f"Bound runtime execution session for {display_label}.",
+                payload={
+                    "persona_id": persona_id,
+                    "role": with_prev.get("role") or persona_id.replace("persona_", "").split("_")[0],
+                    "label": display_label,
+                    "is_main": persona_id == "persona_main",
+                    "runtime_agent_id": runtime_agent_id,
+                },
                 mode=mode,
                 state_mutator=lambda conn, seq: conn.execute(
                     "UPDATE reproduce_personas SET runtime_agent_id = ?, updated_seq = ? WHERE run_id = ? AND persona_id = ?",
@@ -112,7 +120,7 @@ class ResearchCoordinator:
             target_ids=[persona_id],
             subject=EventSubject(kind="agent", id=persona_id),
             status=next_state,
-            summary=f"{persona_id.replace('persona_', '').capitalize()} -> {next_state} ({reason})",
+            summary=f"{display_label} -> {next_state} ({reason})",
             payload={
                 "persona_id": persona_id,
                 "previous_state": with_prev.get("state", "idle"),
@@ -123,15 +131,97 @@ class ResearchCoordinator:
             state_mutator=_mut,
         )
 
+    def _spawn_dynamic_persona(
+        self,
+        run_id: str,
+        *,
+        role: str,
+        instance_index: int | None = None,
+        label: str | None = None,
+        specialty: str = "",
+        mode: RunMode | None = None,
+    ) -> str:
+        """
+        Dynamically instantiate an additional specialist worker inside one of the 5 specialist roles
+        (`paper`, `data`, `analysis`, `validation`, `support`) on demand from Main Agent.
+        """
+        idx = instance_index or self.store.get_next_role_instance_index(run_id, role)
+        rt_id = f"rt_{role}_{idx}_{run_id[-6:]}"
+        persona = build_dynamic_persona(
+            role=role,
+            instance_index=idx,
+            label=label,
+            runtime_agent_id=rt_id,
+        )
+
+        def _insert_dynamic(conn: sqlite3.Connection, seq: int) -> None:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO reproduce_personas (
+                    run_id, persona_id, role, label, runtime_agent_id,
+                    state, is_main, task_ids_json, updated_seq
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, '[]', ?)
+                """,
+                (
+                    run_id,
+                    persona.persona_id,
+                    persona.role,
+                    persona.label,
+                    rt_id,
+                    persona.state,
+                    0,
+                    seq,
+                ),
+            )
+
+        desc = (
+            f"Main dynamically spawned {persona.label} ({persona.role}): {specialty}."
+            if specialty
+            else f"Main dynamically spawned {persona.label} ({persona.role}) for parallel work."
+        )
+        ev = self.store.append_event(
+            run_id,
+            event_type="agent.spawned",
+            actor_id="persona_main",
+            target_ids=[persona.persona_id],
+            subject=EventSubject(kind="agent", id=persona.persona_id),
+            status="active",
+            summary=desc,
+            payload={
+                "persona_id": persona.persona_id,
+                "role": persona.role,
+                "label": persona.label,
+                "is_main": False,
+                "runtime_agent_id": rt_id,
+                "dynamic": True,
+                "spawned_by": "persona_main",
+                "specialty": specialty,
+            },
+            mode=mode,
+            state_mutator=_insert_dynamic,
+        )
+        self.store.add_chat_message(
+            run_id,
+            kind="activity",
+            role="activity",
+            text=desc,
+            related_refs=[
+                SelectedContext(kind="agent", id="persona_main"),
+                SelectedContext(kind="agent", id=persona.persona_id),
+            ],
+            seq=ev.seq,
+        )
+        return persona.persona_id
+
     def _get_persona_state(self, run_id: str, persona_id: str) -> dict[str, Any]:
         from ..storage.db import get_reproduce_conn
 
         with get_reproduce_conn(self.store.db_path) as conn:
             row = conn.execute(
-                "SELECT state, runtime_agent_id FROM reproduce_personas WHERE run_id = ? AND persona_id = ?",
+                "SELECT state, runtime_agent_id, role, label FROM reproduce_personas WHERE run_id = ? AND persona_id = ?",
                 (run_id, persona_id),
             ).fetchone()
-        return dict(row) if row else {"state": "idle", "runtime_agent_id": None}
+        return dict(row) if row else {"state": "idle", "runtime_agent_id": None, "role": None, "label": None}
 
     def _create_task_record(
         self,
@@ -318,11 +408,29 @@ class ResearchCoordinator:
                 mode=mode,
             )
 
-            # --- Phase 1: Paper + Data Agents run concurrently under Scheduler ---
+            # --- Phase 1: Paper + Parallel Multi-Instance Data Agents (`persona_data` + dynamic `persona_data_2`) ---
             extracted_scope: dict[str, Any] = {}
             dataset_bundle: dict[str, Any] = {}
+            s2_csv_holder: list[Path | None] = [None]
 
-            async def _paper_stage() -> AgentTurnResult:
+            data_2_id = self._spawn_dynamic_persona(
+                run_id,
+                role="data",
+                instance_index=2,
+                label="Data #2",
+                specialty="OpenAlex S2 Citation Graph & Window Stratification",
+                mode=mode,
+            )
+            t_data_2 = self._create_task_record(
+                run_id,
+                persona_id=data_2_id,
+                role="data",
+                objective="Prepare bounded OpenAlex S2 citation subgraph for independent 5y vs. 10y D-index check",
+                is_exploration=False,
+                mode=mode,
+            )
+
+            async def _paper_stage() -> Any:
                 async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_paper):
                     self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
                     self._transition_persona(
@@ -505,127 +613,256 @@ class ResearchCoordinator:
                     )
                     self._transition_persona(run_id, "persona_data", "idle", "dataset_ready", mode=mode)
 
-            paper_turn_res, _ = await asyncio.gather(_paper_stage(), _data_stage())
-
-            # --- Phase 2: Analysis Agent executes primary statistical script inside Parallel Experiment Pool ---
-            exp_bundle: dict[str, Any] = {}
-            s2_toy_result = verify_cd_toy_graphs()
-            s2_csv_path: Path | None = None
-
-            if nature_target:
-                from ..config import get_bundled_samples_dir
-
-                bundled_s2 = get_bundled_samples_dir() / "wu2019_s2_openalex_bounded.csv"
-                if bundled_s2.exists():
-                    s2_csv_path = run_dir / "data" / "s2_openalex_bounded.csv"
-                    s2_csv_path.write_bytes(bundled_s2.read_bytes())
-                elif mode == "live":
-                    s2_df = await compute_bounded_openalex_s2_window_check(max_focal=8)
-                    if len(s2_df) > 0:
-                        s2_csv_path = run_dir / "data" / "s2_openalex_bounded.csv"
-                        s2_df.to_csv(s2_csv_path, index=False)
-
-            async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_analysis):
-                self._transition_persona(
-                    run_id,
-                    "persona_analysis",
-                    "working",
-                    "running_statistical_reproduction",
-                    runtime_agent_id=f"rt_analysis_{run_id[-6:]}",
-                    mode=mode,
-                )
-                self._mark_task_status(
-                    run_id,
-                    t_analysis,
-                    "task.started",
-                    "running",
-                    "Analysis Agent acquiring parallel experiment slot to compute team-size disruption curves & 95% CIs.",
-                    persona_id="persona_analysis",
-                    mode=mode,
-                )
-                async with self.scheduler.experiment_slot(run_id=run_id, owner_id=t_analysis):
+            async def _data_s2_stage() -> None:
+                async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_data_2):
                     self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
-                    if nature_target:
-                        exp_out = await run_nature2019_experiments(
-                            run_dir, dataset_bundle["csv_path"], s2_csv_path
-                        )
-                    else:
-                        exp_out = dataset_bundle
-                    exp_bundle.update(exp_out)
-
-                art_script, _ = self.artifacts.register_file(
-                    run_id=run_id,
-                    kind="script",
-                    source_path=exp_bundle["execution"].script_path,
-                    validation_status="passed",
-                    metadata={"reproduction_level": "S1", "description": "Executed Python reproduction script"},
-                )
-                art_team_csv, _ = self.artifacts.register_file(
-                    run_id=run_id,
-                    kind="dataset",
-                    source_path=exp_bundle["team_csv_path"],
-                    validation_status="passed",
-                    metadata={"reproduction_level": "S1", "description": "Team-size bin summary & 95% bootstrap CIs"},
-                )
-                art_fig_main, _ = self.artifacts.register_file(
-                    run_id=run_id,
-                    kind="figure",
-                    source_path=exp_bundle["fig_main_path"],
-                    validation_status="passed",
-                    metadata={"reproduction_level": "S1", "description": "Figure 1: Team size vs. disruption & citations"},
-                )
-                exp_bundle["script_artifact_id"] = art_script.artifact_id
-                exp_bundle["team_csv_artifact_id"] = art_team_csv.artifact_id
-                exp_bundle["fig_main_artifact_id"] = art_fig_main.artifact_id
-
-                for created_art, desc in [
-                    (art_script, "Executable Python analysis script saved with SHA-256 provenance"),
-                    (art_team_csv, "Intermediate team-size statistical summary table generated"),
-                    (art_fig_main, "Figure 1 (Team size vs. disruption percentile & citations) rendered"),
-                ]:
-                    ev_art = self.store.append_event(
+                    self._transition_persona(
                         run_id,
-                        event_type="artifact.created",
-                        actor_id="persona_analysis",
-                        target_ids=["persona_analysis"],
-                        subject=EventSubject(kind="artifact", id=created_art.artifact_id),
-                        status="passed",
-                        summary=desc,
-                        payload={
-                            "artifact_id": created_art.artifact_id,
-                            "kind": created_art.kind,
-                            "validation_status": created_art.validation_status,
-                        },
-                        artifact_ids=[created_art.artifact_id],
+                        data_2_id,
+                        "working",
+                        "fetching_openalex_s2_subgraph",
                         mode=mode,
-                        source="runner",
                     )
-                    self.store.add_chat_message(
+                    self._mark_task_status(
                         run_id,
-                        kind="file",
-                        role="activity",
-                        text=desc,
-                        related_refs=[
-                            SelectedContext(kind="agent", id="persona_analysis"),
-                            SelectedContext(kind="artifact", id=created_art.artifact_id),
-                        ],
-                        artifact_ids=[created_art.artifact_id],
-                        seq=ev_art.seq,
+                        t_data_2,
+                        "task.started",
+                        "running",
+                        "Data #2 preparing bounded OpenAlex S2 citation subgraph (5y vs. 10y forward windows).",
+                        persona_id=data_2_id,
+                        mode=mode,
+                    )
+                    if nature_target:
+                        from ..config import get_bundled_samples_dir
+
+                        bundled_s2 = get_bundled_samples_dir() / "wu2019_s2_openalex_bounded.csv"
+                        if bundled_s2.exists():
+                            p_s2 = run_dir / "data" / "s2_openalex_bounded.csv"
+                            p_s2.parent.mkdir(parents=True, exist_ok=True)
+                            p_s2.write_bytes(bundled_s2.read_bytes())
+                            s2_csv_holder[0] = p_s2
+                        elif mode == "live":
+                            s2_df = await compute_bounded_openalex_s2_window_check(max_focal=8)
+                            if len(s2_df) > 0:
+                                p_s2 = run_dir / "data" / "s2_openalex_bounded.csv"
+                                p_s2.parent.mkdir(parents=True, exist_ok=True)
+                                s2_df.to_csv(p_s2, index=False)
+                                s2_csv_holder[0] = p_s2
+
+                    s2_art_ids: list[str] = []
+                    if s2_csv_holder[0] and s2_csv_holder[0].exists():
+                        art_s2, _ = self.artifacts.register_file(
+                            run_id=run_id,
+                            kind="dataset",
+                            source_path=s2_csv_holder[0],
+                            validation_status="passed",
+                            metadata={"reproduction_level": "S2", "description": "Bounded OpenAlex S2 citation subgraph"},
+                        )
+                        s2_art_ids.append(art_s2.artifact_id)
+                        ev_s2 = self.store.append_event(
+                            run_id,
+                            event_type="artifact.created",
+                            actor_id=data_2_id,
+                            target_ids=[data_2_id],
+                            subject=EventSubject(kind="artifact", id=art_s2.artifact_id),
+                            status="passed",
+                            summary="Bounded OpenAlex S2 citation subgraph prepared by Data #2.",
+                            payload={
+                                "artifact_id": art_s2.artifact_id,
+                                "kind": "dataset",
+                                "validation_status": "passed",
+                            },
+                            artifact_ids=[art_s2.artifact_id],
+                            mode=mode,
+                            source="runner",
+                        )
+                        self.store.add_chat_message(
+                            run_id,
+                            kind="file",
+                            role="activity",
+                            text="Bounded OpenAlex S2 citation subgraph prepared by Data #2.",
+                            related_refs=[
+                                SelectedContext(kind="agent", id=data_2_id),
+                                SelectedContext(kind="artifact", id=art_s2.artifact_id),
+                            ],
+                            artifact_ids=[art_s2.artifact_id],
+                            seq=ev_s2.seq,
+                        )
+
+                    self._mark_task_status(
+                        run_id,
+                        t_data_2,
+                        "task.completed",
+                        "done",
+                        "Data #2 finished bounded S2 citation-subgraph staging.",
+                        persona_id=data_2_id,
+                        artifact_ids=s2_art_ids,
+                        mode=mode,
+                    )
+                    self._transition_persona(run_id, data_2_id, "completed", "s2_subgraph_ready", mode=mode)
+
+            paper_turn_res, _, _ = await asyncio.gather(_paper_stage(), _data_stage(), _data_s2_stage())
+
+            # --- Phase 2: Parallel Multi-Instance Analysis Agents (`persona_analysis` + dynamic `persona_analysis_2`) ---
+            exp_bundle: dict[str, Any] = {}
+            s2_toy_holder: list[dict[str, Any]] = []
+            s2_csv_path = s2_csv_holder[0]
+
+            analysis_2_id = self._spawn_dynamic_persona(
+                run_id,
+                role="analysis",
+                instance_index=2,
+                label="Analysis #2",
+                specialty="S2 CD-Index Toy Graph & Citation-Window Verification",
+                mode=mode,
+            )
+            t_analysis_2 = self._create_task_record(
+                run_id,
+                persona_id=analysis_2_id,
+                role="analysis",
+                objective="Execute independent S2 D = (n_i - n_j)/(n_i + n_j + n_k) toy-graph & window checks in parallel experiment slot",
+                is_exploration=False,
+                mode=mode,
+            )
+
+            async def _primary_analysis_stage() -> None:
+                async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_analysis):
+                    self._transition_persona(
+                        run_id,
+                        "persona_analysis",
+                        "working",
+                        "running_statistical_reproduction",
+                        runtime_agent_id=f"rt_analysis_{run_id[-6:]}",
+                        mode=mode,
+                    )
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis,
+                        "task.started",
+                        "running",
+                        "Analysis Agent acquiring parallel experiment slot #1 to compute team-size disruption curves & 95% CIs.",
+                        persona_id="persona_analysis",
+                        mode=mode,
+                    )
+                    async with self.scheduler.experiment_slot(run_id=run_id, owner_id=t_analysis):
+                        self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
+                        if nature_target:
+                            exp_out = await run_nature2019_experiments(
+                                run_dir, dataset_bundle["csv_path"], s2_csv_path
+                            )
+                        else:
+                            exp_out = dataset_bundle
+                        exp_bundle.update(exp_out)
+
+                    art_script, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="script",
+                        source_path=exp_bundle["execution"].script_path,
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S1", "description": "Executed Python reproduction script"},
+                    )
+                    art_team_csv, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="dataset",
+                        source_path=exp_bundle["team_csv_path"],
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S1", "description": "Team-size bin summary & 95% bootstrap CIs"},
+                    )
+                    art_fig_main, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="figure",
+                        source_path=exp_bundle["fig_main_path"],
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S1", "description": "Figure 1: Team size vs. disruption & citations"},
+                    )
+                    exp_bundle["script_artifact_id"] = art_script.artifact_id
+                    exp_bundle["team_csv_artifact_id"] = art_team_csv.artifact_id
+                    exp_bundle["fig_main_artifact_id"] = art_fig_main.artifact_id
+
+                    for created_art, desc in [
+                        (art_script, "Executable Python analysis script saved with SHA-256 provenance"),
+                        (art_team_csv, "Intermediate team-size statistical summary table generated"),
+                        (art_fig_main, "Figure 1 (Team size vs. disruption percentile & citations) rendered"),
+                    ]:
+                        ev_art = self.store.append_event(
+                            run_id,
+                            event_type="artifact.created",
+                            actor_id="persona_analysis",
+                            target_ids=["persona_analysis"],
+                            subject=EventSubject(kind="artifact", id=created_art.artifact_id),
+                            status="passed",
+                            summary=desc,
+                            payload={
+                                "artifact_id": created_art.artifact_id,
+                                "kind": created_art.kind,
+                                "validation_status": created_art.validation_status,
+                            },
+                            artifact_ids=[created_art.artifact_id],
+                            mode=mode,
+                            source="runner",
+                        )
+                        self.store.add_chat_message(
+                            run_id,
+                            kind="file",
+                            role="activity",
+                            text=desc,
+                            related_refs=[
+                                SelectedContext(kind="agent", id="persona_analysis"),
+                                SelectedContext(kind="artifact", id=created_art.artifact_id),
+                            ],
+                            artifact_ids=[created_art.artifact_id],
+                            seq=ev_art.seq,
+                        )
+
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis,
+                        "task.completed",
+                        "done",
+                        (
+                            f"Primary S1 analysis finished (N={exp_bundle['summary']['primary_sample_n']:,}, "
+                            f"OLS slope={exp_bundle['summary']['ols_slope_per_author']:.5f}/author)."
+                        ),
+                        persona_id="persona_analysis",
+                        artifact_ids=[art_script.artifact_id, art_team_csv.artifact_id, art_fig_main.artifact_id],
+                        mode=mode,
                     )
 
-                self._mark_task_status(
-                    run_id,
-                    t_analysis,
-                    "task.completed",
-                    "done",
-                    (
-                        f"Primary S1 analysis finished (N={exp_bundle['summary']['primary_sample_n']:,}, "
-                        f"OLS slope={exp_bundle['summary']['ols_slope_per_author']:.5f}/author)."
-                    ),
-                    persona_id="persona_analysis",
-                    artifact_ids=[art_script.artifact_id, art_team_csv.artifact_id, art_fig_main.artifact_id],
-                    mode=mode,
-                )
+            async def _secondary_s2_analysis_stage() -> None:
+                async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_analysis_2):
+                    self._transition_persona(
+                        run_id,
+                        analysis_2_id,
+                        "working",
+                        "verifying_s2_cd_index_metric",
+                        mode=mode,
+                    )
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis_2,
+                        "task.started",
+                        "running",
+                        "Analysis #2 acquiring parallel experiment slot #2 to verify S2 D-index formula invariants.",
+                        persona_id=analysis_2_id,
+                        mode=mode,
+                    )
+                    async with self.scheduler.experiment_slot(run_id=run_id, owner_id=t_analysis_2):
+                        self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
+                        toy_res = await asyncio.to_thread(verify_cd_toy_graphs)
+                        s2_toy_holder.append(toy_res)
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis_2,
+                        "task.completed",
+                        "done",
+                        "Analysis #2 verified S2 D = (n_i - n_j)/(n_i + n_j + n_k) exact toy-graph & zero-denominator invariants.",
+                        persona_id=analysis_2_id,
+                        mode=mode,
+                    )
+                    self._transition_persona(run_id, analysis_2_id, "completed", "s2_verification_ready", mode=mode)
+
+            await asyncio.gather(_primary_analysis_stage(), _secondary_s2_analysis_stage())
+            s2_toy_result = s2_toy_holder[0] if s2_toy_holder else verify_cd_toy_graphs()
 
             # --- Phase 3: Validation Agent triggers authentic Citation-Window Debate (2p rectangular table -> 3p circular Pod!) ---
             async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_validation):
@@ -705,7 +942,7 @@ class ResearchCoordinator:
                 )
                 await asyncio.sleep(0.35 if mode == "simulation" else 0.9)
 
-                # Expand 2-person rectangular table -> 3-person circular Pod table (`collaboration.members_changed`)
+                # Expand 2-person rectangular table -> 3-person circular Pod table (`collaboration.members_changed` rev 2)
                 pod_id, _ = self.collab.start_pod(
                     run_id,
                     research_question="Does right-truncation of forward citation windows reverse the negative team-size disruption slope?",
@@ -724,7 +961,27 @@ class ResearchCoordinator:
                     summary="Data joined Analysis & Validation (table expanded to 3-member circular Research Pod).",
                     mode=mode,
                 )
-                await asyncio.sleep(0.35 if mode == "simulation" else 0.9)
+                await asyncio.sleep(0.35 if mode == "simulation" else 0.7)
+
+                # Expand 3-person circular Pod -> 5-person elliptical multi-instance review table (`collaboration.members_changed` rev 3)
+                self._transition_persona(run_id, analysis_2_id, "debating", "joined_elliptical_synthesis", mode=mode)
+                self._transition_persona(run_id, data_2_id, "debating", "joined_elliptical_synthesis", mode=mode)
+                self.collab.change_collaboration_members(
+                    run_id,
+                    collaboration_id=collab_id,
+                    participant_persona_ids=[
+                        "persona_analysis",
+                        "persona_validation",
+                        "persona_data",
+                        analysis_2_id,
+                        data_2_id,
+                    ],
+                    reason="Analysis #2 and Data #2 joined with bounded S2 window results",
+                    actor_id=analysis_2_id,
+                    summary="Analysis #2 & Data #2 joined (table expanded to 5-member elliptical cross-verification group).",
+                    mode=mode,
+                )
+                await asyncio.sleep(0.35 if mode == "simulation" else 0.7)
 
                 art_win_csv, _ = self.artifacts.register_file(
                     run_id=run_id,
@@ -776,7 +1033,16 @@ class ResearchCoordinator:
                         seq=ev_w.seq,
                     )
 
-                # Independent Evidence Gate evaluation
+                # Spawn independent Validation #2 instance to run Evidence Gate audit
+                val_2_id = self._spawn_dynamic_persona(
+                    run_id,
+                    role="validation",
+                    instance_index=2,
+                    label="Validation #2",
+                    specialty="Independent Evidence Gate & Manifest Audit",
+                    mode=mode,
+                )
+                self._transition_persona(run_id, val_2_id, "working", "auditing_evidence_gate", mode=mode)
                 ev_review = self.evidence_gate.review_reproduction_bundle(
                     claim_id="claim_team_size_disruption",
                     claimed_level="S1",
@@ -818,7 +1084,7 @@ class ResearchCoordinator:
                             exp_bundle["execution"].script_sha256,
                             jdumps(result_art_ids),
                             "verified" if ev_review.result == "passed" else ev_review.result,
-                            "evidence_gate",
+                            val_2_id,
                             jdumps(
                                 {
                                     "checks": ev_review.checks,
@@ -834,11 +1100,11 @@ class ResearchCoordinator:
                 self.store.append_event(
                     run_id,
                     event_type="evidence.reviewed",
-                    actor_id="persona_validation",
-                    target_ids=["persona_analysis", "persona_validation"],
+                    actor_id=val_2_id,
+                    target_ids=["persona_analysis", "persona_validation", val_2_id],
                     subject=EventSubject(kind="evidence", id=evidence_id),
                     status=ev_review.result,
-                    summary=f"Evidence Gate verdict: {ev_review.result.upper()} ({ev_review.reproduction_level_verified} verified).",
+                    summary=f"Evidence Gate verdict by {val_2_id}: {ev_review.result.upper()} ({ev_review.reproduction_level_verified} verified).",
                     payload={
                         "claim_id": ev_review.claim_id,
                         "result": ev_review.result,
@@ -852,6 +1118,7 @@ class ResearchCoordinator:
                     source="validator",
                     state_mutator=_save_evid,
                 )
+                self._transition_persona(run_id, val_2_id, "completed", "evidence_gate_complete", mode=mode)
 
                 resolution_text = (
                     "Window-stratified sensitivity confirmed the negative team-size vs. disruption slope holds in "
@@ -1053,15 +1320,8 @@ class ResearchCoordinator:
                 artifact_ids=report_ids,
                 mode=mode,
             )
-            # Return all personas to calm `idle` at home anchors after run completion (L1.5 §8.4)
-            for pid in (
-                "persona_main",
-                "persona_paper",
-                "persona_data",
-                "persona_analysis",
-                "persona_validation",
-                "persona_support",
-            ):
+            # Return all personas (baseline 6 + dynamically spawned specialists) to calm `idle` at anchors (L1.5 §8.4)
+            for pid in self.store.list_persona_ids(run_id):
                 self._transition_persona(run_id, pid, "idle", "returned_to_anchor", mode=mode)
 
         except Exception as exc:
@@ -1174,6 +1434,160 @@ class ResearchCoordinator:
             status="completed",
             summary="Follow-up methodological review completed.",
             payload={"followup": True, "participants": members},
+            mode=mode,
+        )
+
+    async def execute_dynamic_spawn_followup(
+        self,
+        run_id: str,
+        *,
+        user_prompt: str,
+        role_counts: dict[str, int],
+    ) -> None:
+        """
+        Dynamically summon N additional specialist instances across any of the 5 specialist classes
+        under Main Boss coordination, execute parallel tasks under ResourceScheduler, hold a
+        multi-instance verification roundtable, and return every persona cleanly to `idle`.
+        """
+        meta = self.store.get_run_meta(run_id)
+        if not meta:
+            return
+        mode: RunMode = meta["mode"]
+        self.store.update_run_status(run_id, status="running")
+        self._transition_persona(run_id, "persona_main", "working", "spawning_parallel_specialists", mode=mode)
+
+        spawned_ids: list[str] = []
+        task_map: dict[str, str] = {}
+        for role, count in role_counts.items():
+            if role not in SPECIALIST_ROLES:
+                continue
+            for _ in range(max(1, min(4, count))):
+                idx = self.store.get_next_role_instance_index(run_id, role)
+                pid = self._spawn_dynamic_persona(
+                    run_id,
+                    role=role,
+                    instance_index=idx,
+                    label=f"{role.capitalize()} #{idx}",
+                    specialty=user_prompt[:80],
+                    mode=mode,
+                )
+                tid = self._create_task_record(
+                    run_id,
+                    persona_id=pid,
+                    role=role,
+                    objective=f"Parallel {role} check #{idx}: {user_prompt[:80]}",
+                    is_exploration=True,
+                    mode=mode,
+                )
+                spawned_ids.append(pid)
+                task_map[pid] = tid
+
+        if not spawned_ids:
+            idx = self.store.get_next_role_instance_index(run_id, "analysis")
+            pid = self._spawn_dynamic_persona(
+                run_id,
+                role="analysis",
+                instance_index=idx,
+                label=f"Analysis #{idx}",
+                specialty=user_prompt[:80],
+                mode=mode,
+            )
+            tid = self._create_task_record(
+                run_id,
+                persona_id=pid,
+                role="analysis",
+                objective=f"Parallel analysis check #{idx}: {user_prompt[:80]}",
+                is_exploration=True,
+                mode=mode,
+            )
+            spawned_ids.append(pid)
+            task_map[pid] = tid
+
+        async def _run_dynamic_worker(pid: str) -> None:
+            tid = task_map[pid]
+            async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=tid):
+                self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
+                self._transition_persona(run_id, pid, "working", "executing_dynamic_subtask", mode=mode)
+                self._mark_task_status(
+                    run_id,
+                    tid,
+                    "task.started",
+                    "running",
+                    f"{pid} executing parallel verification subtask.",
+                    persona_id=pid,
+                    mode=mode,
+                )
+                await asyncio.sleep(0.25 if mode == "simulation" else 0.5)
+                self._mark_task_status(
+                    run_id,
+                    tid,
+                    "task.completed",
+                    "done",
+                    f"{pid} completed parallel verification subtask.",
+                    persona_id=pid,
+                    mode=mode,
+                )
+                self._transition_persona(run_id, pid, "completed", "subtask_done", mode=mode)
+
+        await asyncio.gather(*(_run_dynamic_worker(pid) for pid in spawned_ids))
+
+        table_members = [*spawned_ids]
+        if len(table_members) < 2:
+            table_members.append("persona_validation")
+        cid, _ = self.collab.start_collaboration(
+            run_id,
+            kind="pod" if len(table_members) >= 3 else "debate",
+            participant_persona_ids=table_members,
+            topic=f"Parallel cross-check ({len(table_members)} specialists)",
+            source_ref=SourceRef(kind="collaboration", id=f"dyn_{uuid.uuid4().hex[:6]}"),
+            actor_id="persona_main",
+            summary=f"Main convened {len(table_members)} specialists (including dynamic workers) for synthesis.",
+            mode=mode,
+        )
+        for m in table_members:
+            self._transition_persona(run_id, m, "debating", "synthesizing_parallel_findings", mode=mode)
+        await asyncio.sleep(0.35 if mode == "simulation" else 0.7)
+
+        self.collab.end_collaboration(
+            run_id,
+            collaboration_id=cid,
+            outcome="synthesized",
+            actor_id="persona_main",
+            summary="Dynamic specialist team synthesis delivered to Main.",
+            mode=mode,
+        )
+        for pid in self.store.list_persona_ids(run_id):
+            self._transition_persona(run_id, pid, "idle", "returned_to_anchor", mode=mode)
+
+        self.store.add_chat_message(
+            run_id,
+            kind="message",
+            role="main",
+            text=(
+                f"Main Agent dynamically spawned `{len(spawned_ids)}` new specialist agent instance(s) "
+                f"({', '.join(f'`{p}`' for p in spawned_ids)}) under Scheduler governance (`max_active_agent_tasks=4`) "
+                f"and completed parallel cross-verification for **\"{user_prompt[:100]}\"**."
+            ),
+            related_refs=[
+                SelectedContext(kind="agent", id="persona_main"),
+                *[SelectedContext(kind="agent", id=p) for p in spawned_ids],
+                SelectedContext(kind="collaboration", id=cid),
+            ],
+        )
+        self.store.update_run_status(
+            run_id,
+            status="completed",
+            resources=self.scheduler.snapshot_state(run_id),
+        )
+        self.store.append_event(
+            run_id,
+            event_type="run.completed",
+            actor_id="persona_main",
+            target_ids=["persona_main"],
+            subject=EventSubject(kind="run", id=run_id),
+            status="completed",
+            summary=f"Dynamic multi-instance check completed ({len(spawned_ids)} spawned).",
+            payload={"dynamic_spawned": spawned_ids},
             mode=mode,
         )
 

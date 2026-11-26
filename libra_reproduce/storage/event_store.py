@@ -162,6 +162,29 @@ class EventStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def list_persona_ids(self, run_id: str) -> list[str]:
+        """Return all persisted persona IDs (baseline + dynamically spawned) for a run."""
+        with get_reproduce_conn(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT persona_id FROM reproduce_personas WHERE run_id = ? ORDER BY rowid ASC",
+                (run_id,),
+            ).fetchall()
+        return [str(r["persona_id"]) for r in rows]
+
+    def get_next_role_instance_index(self, run_id: str, role: str) -> int:
+        """Return the next unused >=2 numeric suffix for dynamic spawning within `role`."""
+        existing = self.list_persona_ids(run_id)
+        prefix = f"persona_{role}_"
+        max_idx = 1
+        for pid in existing:
+            if pid == f"persona_{role}":
+                max_idx = max(max_idx, 1)
+            elif pid.startswith(prefix):
+                tail = pid[len(prefix) :]
+                if tail.isdigit():
+                    max_idx = max(max_idx, int(tail))
+        return max_idx + 1
+
     def get_or_create_workspace_run(
         self,
         workspace_id: str,
@@ -729,8 +752,21 @@ class EventStore:
             pl = ev.payload
             if ev.type == "agent.spawned":
                 pid = str(pl.get("persona_id") or "")
+                rt_id = str(pl.get("runtime_agent_id") or ev.actor_id or "")
                 if pid in personas_map:
-                    personas_map[pid].runtime_agent_id = str(pl.get("runtime_agent_id") or ev.actor_id or "")
+                    personas_map[pid].runtime_agent_id = rt_id
+                elif pid:
+                    role_val = str(pl.get("role") or "support")
+                    label_val = str(pl.get("label") or pid)
+                    personas_map[pid] = Persona(
+                        persona_id=pid,
+                        role=role_val,
+                        label=label_val,
+                        runtime_agent_id=rt_id,
+                        state="assigned",
+                        is_main=bool(pl.get("is_main", False)),
+                        task_ids=[],
+                    )
             elif ev.type == "agent.status_changed":
                 pid = str(pl.get("persona_id") or "")
                 nxt = str(pl.get("next_state") or "idle")

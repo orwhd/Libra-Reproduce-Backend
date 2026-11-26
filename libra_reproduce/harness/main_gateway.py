@@ -25,6 +25,12 @@ _ACTION_TRIGGER_PATTERNS = re.compile(
 )
 
 
+_DYNAMIC_SPAWN_RE = re.compile(
+    r"(?:动态调用|额外调用|并行调用|多调用|多个\s*(?:agent|分析|数据|论文|验证|支持)|再调用\s*\d+|spawn\s+\d+|spawn\s+(?:more|extra|parallel)\s+agents?)",
+    flags=re.IGNORECASE,
+)
+
+
 class MainAgentGateway:
     """
     Sole user-facing command gateway (`POST /api/runs/{run_id}/chat`).
@@ -116,9 +122,15 @@ class MainAgentGateway:
             )
             return 202, resp
 
-        # 3. Follow-up roundtable if primary run already completed and user asks agents to discuss/review
-        is_roundtable_followup = bool(
+        # 3. Follow-up dynamic multi-instance spawn or roundtable when primary run already completed
+        is_dynamic_spawn_followup = bool(
             has_existing_results
+            and run_meta["status"] == "completed"
+            and _DYNAMIC_SPAWN_RE.search(text)
+        )
+        is_roundtable_followup = bool(
+            not is_dynamic_spawn_followup
+            and has_existing_results
             and run_meta["status"] == "completed"
             and re.search(r"(?:讨论|圆桌|五人|全员|解释.*分歧|roundtable|discuss|all agents|5-agent)", text, flags=re.IGNORECASE)
         )
@@ -156,11 +168,13 @@ class MainAgentGateway:
             )
             return ev
 
-        ack_msg = (
-            "Main Agent accepted the methodological review request and is convening the research team."
-            if is_roundtable_followup
-            else "Main Agent accepted the reproduction plan and dispatched Paper, Data, Analysis, and Validation under Scheduler governance."
-        )
+        if is_dynamic_spawn_followup:
+            ack_msg = "Main Agent accepted the dynamic multi-agent scaling request and is spawning specialist instances."
+        elif is_roundtable_followup:
+            ack_msg = "Main Agent accepted the methodological review request and is convening the research team."
+        else:
+            ack_msg = "Main Agent accepted the reproduction plan and dispatched Paper, Data, Analysis, and Validation under Scheduler governance."
+
         resp, was_dup, _ = self.store.record_command_atomic(
             run_id=run_id,
             request_id=cmd.request_id,
@@ -173,7 +187,16 @@ class MainAgentGateway:
         )
 
         if not was_dup:
-            if is_roundtable_followup:
+            if is_dynamic_spawn_followup:
+                role_counts = self._infer_dynamic_spawn_counts(text)
+                self._spawn_bg(
+                    self.coordinator.execute_dynamic_spawn_followup(
+                        run_id,
+                        user_prompt=text,
+                        role_counts=role_counts,
+                    )
+                )
+            elif is_roundtable_followup:
                 participants = self._infer_roundtable_members(text)
                 self._spawn_bg(
                     self.coordinator.execute_team_roundtable_check(
@@ -192,6 +215,25 @@ class MainAgentGateway:
                 )
 
         return 202, resp
+
+    @staticmethod
+    def _infer_dynamic_spawn_counts(text: str) -> dict[str, int]:
+        aliases = {
+            "paper": ("paper", "论文"),
+            "data": ("data", "数据"),
+            "analysis": ("analysis", "分析"),
+            "validation": ("validation", "验证", "检验"),
+            "support": ("support", "支持", "报告"),
+        }
+        counts: dict[str, int] = {}
+        num_match = re.search(r"(\d+)\s*(?:个|名)?", text)
+        default_n = min(4, max(2, int(num_match.group(1)))) if num_match else 2
+        for role, kws in aliases.items():
+            if any(k in text.lower() for k in kws):
+                counts[role] = default_n
+        if not counts:
+            counts["analysis"] = 2
+        return counts
 
     @staticmethod
     def _infer_roundtable_members(text: str) -> list[str]:
