@@ -1,0 +1,447 @@
+<svg id="diagram" xmlns="http://www.w3.org/2000/svg" width="1440" height="592" viewBox="0 0 1440 592">
+  <style>
+  text { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+@page { size: 1460px 585px; margin: 0; }
+  
+  svg { display: block; }
+  .title { font-size: 13px; font-weight: 700; fill: #1e293b; }
+  .sub { font-size: 10.8px; fill: #334155; }
+  .sub-role { font-size: 10.6px; font-weight: 600; fill: #9a3412; }
+  .out { font-size: 10.1px; font-style: italic; font-weight: 500; fill: #2b6cb0; }
+  .sec-label { font-size: 12.5px; font-weight: 700; fill: #64748b; }
+  .p-ink { fill: none; stroke: #1b1b1f; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+  .p-thin { stroke-width: 3.1; }
+  .p-orbit { stroke-width: 2.5; }
+  .p-mouth { fill: #1b1b1f; stroke: #1b1b1f; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+  .mark-ink { fill: none; stroke: #1b1b1f; stroke-width: 4.8; stroke-linecap: round; stroke-linejoin: round; }
+  .mark-thin { stroke-width: 3.4; }
+  .mark-heavy { stroke-width: 5.6; }
+  .mark-dot { fill: #1b1b1f; }
+  </style>
+  <defs>
+    <marker id="arr-dark" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#1f2937" />
+    </marker>
+    <marker id="arr-orange" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#e0863b" />
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#5c9b5c" />
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#c0392b" />
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#8568b8" />
+    </marker>
+  </defs>
+
+  <rect width="1440" height="592" fill="#ffffff" />
+
+  <!-- ================= LEFT COLUMN: USER & DATA SOURCES ================= -->
+  <g>
+    <rect x="16" y="92" width="188" height="96" rx="10" fill="#fdf3d7" stroke="#d4a23e" stroke-width="1.6" />
+    <text x="28" y="115" class="title">User</text>
+    <text x="28" y="138" class="sub">Research prompt</text>
+    <text x="28" y="156" class="sub">Uploaded PDF / CSV</text>
+    <text x="28" y="174" class="sub">CLI run · API follow-up</text>
+
+    <rect x="16" y="220" width="188" height="114" rx="10" fill="#fdf3d7" stroke="#d4a23e" stroke-width="1.6" />
+    <text x="28" y="243" class="title">Data Sources</text>
+    <text x="28" y="266" class="sub">Harvard Dataverse</text>
+    <text x="28" y="284" class="sub">OpenAlex</text>
+    <text x="28" y="302" class="sub">User uploads</text>
+  </g>
+
+  <!-- ================= CENTER HARNESS CONTAINER ================= -->
+  <rect x="228" y="56" width="942" height="450" rx="14" fill="#f5f7f9" stroke="#8e98a6" stroke-width="1.6" stroke-dasharray="7 4.5" />
+  <text x="242" y="77" class="sec-label">Harness</text>
+
+  <!-- Top Row: Boss Agent + Scheduler -->
+  <g>
+    <rect x="250" y="92" width="648" height="84" rx="10" fill="#fbe2cd" stroke="#e0863b" stroke-width="1.6" />
+    <text x="264" y="114" class="title">Boss Agent</text>
+    <text x="264" y="134" class="sub-role">Gateway · Coordinator</text>
+    <text x="264" y="151" class="sub">Plan · Dispatch · Spawn parallel specialist instances</text>
+    <text x="264" y="167" class="sub">Answer follow-up directly or start a reproduction run</text>
+    
+    <g transform="translate(816 100) scale(0.26)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      <path class="p-ink p-orbit" d="M18 128 C 8 60, 70 14, 128 24 C 186 34, 206 100, 186 152 C 166 200, 92 214, 48 186" />
+      <circle cx="100" cy="112" r="76" fill="#FFD24A" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M62 52 C 66 30, 80 30, 83 46 C 86 24, 114 24, 117 46 C 120 30, 134 30, 138 52" />
+        <path class="p-ink" d="M64.8 91.9Q75.8 94.4 86.8 96.9" opacity="1" />
+        <path class="p-ink" d="M116.8 96.9Q127.8 94.4 138.8 91.9" opacity="1" />
+        <path class="p-ink" d="M77 110Q77 110 77 110" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M129 110Q129 110 129 110" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M100 94 C 98 108, 92 120, 94 126 C 98 130, 106 128, 110 126" transform="translate(1.8 2)" />
+        <path class="p-mouth" d="M94.5 150.6C100.5 150.6 106.5 150.6 112.5 150.6C106.5 150.6 100.5 150.6 94.5 150.6Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M184 44 L224 2 L240 18 L200 60 Z M184 44 L176 68 L200 60 M216 10 L232 26" />
+              <path class="mark-ink mark-thin" d="M150 214 C 160 198, 170 222, 182 204 S 202 220, 214 202 S 232 214, 244 200" />
+      </g>
+    </g>
+  
+
+    <rect x="920" y="92" width="228" height="84" rx="10" fill="#fbe2cd" stroke="#e0863b" stroke-width="1.6" />
+    <text x="934" y="114" class="title">Scheduler</text>
+    <text x="934" y="134" class="sub">≤ 4 parallel agents</text>
+    <text x="934" y="150" class="sub">≤ 2 parallel experiments</text>
+    <text x="934" y="166" class="sub">≤ 20% exploration budget</text>
+    <!-- Clean dual-pool slot gauge -->
+    <g transform="translate(1082 110)">
+      <rect x="0" y="4" width="50" height="10" rx="5" fill="#fff7ed" stroke="#e0863b" stroke-width="1.2" />
+      <rect x="2" y="6" width="35" height="6" rx="3" fill="#e0863b" opacity="0.85" />
+      <rect x="0" y="21" width="50" height="10" rx="5" fill="#fff7ed" stroke="#e0863b" stroke-width="1.2" />
+      <rect x="2" y="23" width="23" height="6" rx="3" fill="#4a7ab8" opacity="0.85" />
+      <rect x="0" y="38" width="50" height="10" rx="5" fill="#fff7ed" stroke="#e0863b" stroke-width="1.2" />
+      <rect x="2" y="40" width="11" height="6" rx="3" fill="#5c9b5c" opacity="0.9" />
+    </g>
+  </g>
+
+  <!-- Arrow: Boss Agent -> Scheduler -->
+  <line x1="898" y1="134" x2="918" y2="134" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+
+  <!-- Orange Dispatch Bus -->
+  <line x1="574" y1="176" x2="574" y2="194" stroke="#e0863b" stroke-width="1.7" />
+  <line x1="333" y1="194" x2="1065" y2="194" stroke="#e0863b" stroke-width="1.7" />
+  <line x1="333" y1="194" x2="333" y2="212" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+  <line x1="516" y1="194" x2="516" y2="212" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+  <line x1="699" y1="194" x2="699" y2="212" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+  <line x1="882" y1="194" x2="882" y2="212" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+  <line x1="1065" y1="194" x2="1065" y2="212" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+
+  <!-- Middle Row: 5 Specialist Agents -->
+  <!-- (1) Paper Agent -->
+  <g>
+    <rect x="250" y="214" width="166" height="132" rx="10" fill="#dfeaf8" stroke="#4a7ab8" stroke-width="1.6" />
+    <text x="261" y="233" class="title">(1) Paper Agent</text>
+    
+    <g transform="translate(308 245) scale(0.18)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#FF9FD8" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M70 58 C 96 52, 122 46, 124 26 C 126 10, 108 8, 108 24 C 108 42, 134 50, 160 36" />
+        <path class="p-ink" d="M65 87.6Q77 85.6 89 87.6" opacity="0.6" />
+        <path class="p-ink" d="M117 87.6Q129 85.6 141 87.6" opacity="0.6" />
+        <path class="p-ink" d="M79 105Q79 105 79 105" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M131 105Q131 105 131 105" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M98 94 C 104 108, 112 122, 110 128 C 106 132, 98 131, 92 131" transform="translate(3 0.5)" />
+        <path class="p-mouth" d="M87.5 146.4C97.5 151.4 107.5 151.4 117.5 146.4C107.5 151.4 97.5 151.4 87.5 146.4Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M170 46 C 178 4, 214 -10, 240 14 M224 16 L241 15 L238 -2" />
+      </g>
+    </g>
+  
+    <text x="261" y="297" class="sub">Read prompt &amp; PDF</text>
+    <text x="261" y="314" class="sub">Extract testable claims</text>
+    <text x="261" y="335" class="out">→ Method &amp; claim scope</text>
+  </g>
+
+  <!-- (2) Data Agent -->
+  <g>
+    <rect x="433" y="214" width="166" height="132" rx="10" fill="#dfeaf8" stroke="#4a7ab8" stroke-width="1.6" />
+    <text x="444" y="233" class="title">(2) Data Agent</text>
+    
+    <g transform="translate(492 245) scale(0.18)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#7CC8FF" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M80 46 C 80 36, 76 28, 72 20 M100 40 C 100 30, 100 22, 100 12 M120 46 C 120 36, 124 28, 128 20" />
+        <path class="p-ink" d="M62 82Q74 77 86 80" opacity="1" />
+        <path class="p-ink" d="M114 80Q126 77 138 82" opacity="1" />
+        <path class="p-ink" d="M74 104Q74 104 74 104" stroke-width="11.5" opacity="1" />
+        <path class="p-ink" d="M126 104Q126 104 126 104" stroke-width="11.5" opacity="1" />
+        <path class="p-ink" d="M102 96 C 102 108, 100 120, 96 128 C 100 131, 106 131, 110 129" transform="translate(0 0)" />
+        <path class="p-mouth" d="M94 146C98 145 102 145 106 146C102 155 98 155 94 146Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M210 -18 C 208 0, 206 16, 203 34" /><circle class="mark-dot" cx="201" cy="54" r="3.8" />
+      </g>
+    </g>
+  
+    <text x="444" y="297" class="sub">Fetch &amp; audit datasets</text>
+    <text x="444" y="314" class="sub">Verify schema &amp; hashes</text>
+    <text x="444" y="335" class="out">→ CSV + manifest</text>
+  </g>
+
+  <!-- (3) Analysis Agent -->
+  <g>
+    <rect x="616" y="214" width="166" height="132" rx="10" fill="#dfeaf8" stroke="#4a7ab8" stroke-width="1.6" />
+    <text x="627" y="233" class="title">(3) Analysis Agent</text>
+    
+    <g transform="translate(674 245) scale(0.18)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#4FF5C8" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M40 26 C 52 56, 104 58, 170 20" />
+        <path class="p-ink" d="M64.8 91.9Q75.8 94.4 86.8 96.9" opacity="1" />
+        <path class="p-ink" d="M116.8 96.9Q127.8 94.4 138.8 91.9" opacity="1" />
+        <path class="p-ink" d="M77 110Q77 110 77 110" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M129 110Q129 110 129 110" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M108 96 C 102 108, 94 122, 96 128 C 98 132, 104 131, 110 131" transform="translate(1.8 2)" />
+        <path class="p-mouth" d="M94.5 150.6C100.5 150.6 106.5 150.6 112.5 150.6C106.5 150.6 100.5 150.6 94.5 150.6Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M184 44 L224 2 L240 18 L200 60 Z M184 44 L176 68 L200 60 M216 10 L232 26" />
+              <path class="mark-ink mark-thin" d="M150 214 C 160 198, 170 222, 182 204 S 202 220, 214 202 S 232 214, 244 200" />
+      </g>
+    </g>
+  
+    <text x="627" y="297" class="sub">Write &amp; run experiments</text>
+    <text x="627" y="314" class="sub">Stats &amp; robustness checks</text>
+    <text x="627" y="335" class="out">→ Scripts · CSV · PNG</text>
+  </g>
+
+  <!-- (4) Validation Agent -->
+  <g>
+    <rect x="799" y="214" width="166" height="132" rx="10" fill="#dfeaf8" stroke="#4a7ab8" stroke-width="1.6" />
+    <text x="810" y="233" class="title">(4) Validation Agent</text>
+    
+    <g transform="translate(858 245) scale(0.176)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#FF9A6B" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M48 62 C 60 34, 104 24, 140 34 C 152 38, 158 44, 162 52 M140 34 C 146 26, 152 22, 160 22" />
+        <path class="p-ink" d="M62 85Q74 87 86 91" opacity="1" />
+        <path class="p-ink" d="M114 91Q126 87 138 85" opacity="1" />
+        <path class="p-ink" d="M74 104Q74 104 74 104" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M126 104Q126 104 126 104" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M104 92 C 98 108, 90 124, 96 128 C 100 130, 106 129, 108 127" transform="translate(0 0)" />
+        <path class="p-mouth" d="M85 145C95 147 105 147 115 145C105 159 95 159 85 145Z" />
+      </g>
+      <path class="p-ink p-thin" d="M186 128 C 194 136, 194 152, 186 160" /><path class="p-ink p-thin" opacity="0.6" d="M200 118 C 214 134, 214 156, 200 172" />
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M166 6 C 166 -18, 214 -20, 216 4 C 218 26, 190 30, 180 26 L166 40 L170 22 C 166 18, 166 12, 166 6 Z" />
+              <path class="mark-ink" opacity="0.65" d="M246 34 C 246 14, 206 12, 204 32 C 202 50, 226 54, 234 50 L246 62 L242 46 C 246 44, 246 40, 246 34 Z" />
+      </g>
+    </g>
+  
+    <text x="810" y="297" class="sub">Debate &amp; critique claims</text>
+    <text x="810" y="314" class="sub">Evidence Gate audit</text>
+    <text x="810" y="335" class="out">→ pass / inconclusive / fail</text>
+  </g>
+
+  <!-- (5) Support Agent -->
+  <g>
+    <rect x="982" y="214" width="166" height="132" rx="10" fill="#dfeaf8" stroke="#4a7ab8" stroke-width="1.6" />
+    <text x="993" y="233" class="title">(5) Support Agent</text>
+    
+    <g transform="translate(1042 245) scale(0.18)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#B9A6FF" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M100 40 C 100 32, 100 24, 100 14 M100 24 C 92 14, 82 14, 78 20 C 86 26, 94 26, 100 24 M100 20 C 108 10, 120 10, 124 16 C 116 22, 106 22, 100 20" />
+        <path class="p-ink" d="M62 86Q74 82 86 84" opacity="0.8" />
+        <path class="p-ink" d="M114 84Q126 82 138 86" opacity="0.8" />
+        <path class="p-ink" d="M74 103Q74 103 74 103" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M126 103Q126 103 126 103" stroke-width="10" opacity="1" />
+        <path class="p-ink" d="M100 98 C 100 110, 98 120, 96 126 C 100 129, 104 129, 108 127" transform="translate(0 0)" />
+        <path class="p-mouth" d="M80 143C93.3 151 106.7 151 120 143C106.7 160 93.3 160 80 143Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink" d="M180 32 L180 6 L222 -14 L222 52 Z M180 10 L166 10 L166 28 L180 28 M184 32 L190 50" />
+              <path class="mark-ink mark-thin" d="M234 2 L248 -6 M236 19 L252 19 M234 36 L248 44" />
+      </g>
+    </g>
+  
+    <text x="993" y="297" class="sub">Compile verified findings</text>
+    <text x="993" y="314" class="sub">Build PDF &amp; DOCX reports</text>
+    <text x="993" y="335" class="out">→ PDF + DOCX</text>
+  </g>
+
+  <!-- Pipeline data-flow arrows -->
+  <line x1="416" y1="280" x2="431" y2="280" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+  <line x1="599" y1="280" x2="614" y2="280" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+  <line x1="782" y1="280" x2="797" y2="280" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+  <line x1="965" y1="280" x2="980" y2="280" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+
+  <!-- Bottom Row: 4 Infrastructure / Tool Subsystems -->
+  <g>
+    <rect x="250" y="424" width="210" height="68" rx="10" fill="#e2f1df" stroke="#5c9b5c" stroke-width="1.6" />
+    <text x="262" y="444" class="title">Agent Runtime</text>
+    <text x="262" y="462" class="sub">Claude SDK · OpenAI fallback</text>
+    <text x="262" y="478" class="sub">Restricted MCP tools</text>
+
+    <rect x="479" y="424" width="210" height="68" rx="10" fill="#e2f1df" stroke="#5c9b5c" stroke-width="1.6" />
+    <text x="491" y="444" class="title">Python Sandbox</text>
+    <text x="491" y="462" class="sub">Isolated subprocess (-E)</text>
+    <text x="491" y="478" class="sub">AST safety · no API keys</text>
+
+    <rect x="708" y="424" width="210" height="68" rx="10" fill="#e2f1df" stroke="#5c9b5c" stroke-width="1.6" />
+    <text x="720" y="444" class="title">Artifact Store</text>
+    <text x="720" y="462" class="sub">Run-scoped files &amp; SHA-256</text>
+    <text x="720" y="478" class="sub">Datasets · Scripts · Figures</text>
+
+    <rect x="937" y="424" width="210" height="68" rx="10" fill="#e2f1df" stroke="#5c9b5c" stroke-width="1.6" />
+    <text x="949" y="444" class="title">Event Store</text>
+    <text x="949" y="462" class="sub">SQLite log (all agents &amp; runs)</text>
+    <text x="949" y="478" class="sub">Snapshots · SSE · Audit traces</text>
+  </g>
+
+  <!-- Accurate Green Dashed Tool-Call Connectors -->
+  <!-- 1) Agent Runtime -> (1) Paper, (3) Analysis (#3), (4) Validation (rail at y=396) -->
+  <path d="M 333 424 L 333 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+  <path d="M 333 396 L 872 396" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" />
+  <path d="M 636 396 L 636 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+  <path d="M 872 396 L 872 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+
+  <!-- 2) Artifact Store -> (2) Data, (3) Analysis, (4) Validation, (5) Support (rail at y=410) -->
+  <path d="M 726 402 L 726 390" fill="none" stroke="#f5f7f9" stroke-width="4.5" />
+  <path d="M 726 424 L 726 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+  <path d="M 548 410 L 1032 410" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" />
+  <path d="M 548 402 L 548 390" fill="none" stroke="#f5f7f9" stroke-width="4.5" />
+  <path d="M 548 410 L 548 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+  <path d="M 910 424 L 910 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+  <path d="M 1032 410 L 1032 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+
+  <!-- 3) Python Sandbox -> (3) Analysis (straight vertical at x=676 with clean halo over rails) -->
+  <path d="M 676 416 L 676 390" fill="none" stroke="#f5f7f9" stroke-width="4.5" />
+  <path d="M 676 424 L 676 348" fill="none" stroke="#5c9b5c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+
+  <!-- Debate challenge curved arc from (4) Validation Agent back to (3) Analysis Agent (triggers Round 2, NOT Evidence Gate retry) -->
+  <path d="M 834 346 C 822 380, 770 380, 758 348" fill="none" stroke="#c0392b" stroke-width="1.7" stroke-dasharray="5 3" marker-end="url(#arr-red)" />
+  <rect x="742" y="368" width="110" height="15" rx="4" fill="#f5f7f9" />
+  <text x="797" y="379" text-anchor="middle" font-size="10.2" font-weight="700" fill="#c0392b">challenge → Round 2</text>
+
+  <!-- Inputs -> Harness -->
+  <!-- User -> Boss Agent -->
+  <line x1="204" y1="140" x2="248" y2="140" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+  <!-- Data Sources -> (2) Data Agent (routed cleanly under (1) Paper Agent with crisp halo) -->
+  <path d="M 326 362 L 340 362" fill="none" stroke="#f5f7f9" stroke-width="4.5" />
+  <path d="M 204 280 L 238 280 L 238 362 L 478 362 L 478 348" fill="none" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+
+  <!-- ================= RIGHT COLUMN: CLI & API CLIENT + OUTPUTS ================= -->
+  <g>
+    <rect x="1198" y="56" width="226" height="310" rx="12" fill="#ece3f6" stroke="#8568b8" stroke-width="1.6" />
+    <text x="1311" y="80" text-anchor="middle" class="title" font-size="13.5">CLI &amp; API Client</text>
+
+    <text x="1212" y="106" class="title" font-size="11.5">Run Progress</text>
+    <!-- 3 pills -->
+    <rect x="1212" y="116" width="58" height="36" rx="7" fill="#ffffff" stroke="#8568b8" stroke-width="1.3" />
+    <text x="1241" y="138" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1e293b">Round 1</text>
+    <line x1="1270" y1="134" x2="1282" y2="134" stroke="#8568b8" stroke-width="1.3" marker-end="url(#arr-purple)" />
+
+    <rect x="1284" y="116" width="58" height="36" rx="7" fill="#ffffff" stroke="#8568b8" stroke-width="1.3" />
+    <text x="1313" y="138" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1e293b">Round 2</text>
+    <line x1="1342" y1="134" x2="1354" y2="134" stroke="#8568b8" stroke-width="1.3" marker-end="url(#arr-purple)" />
+
+    <rect x="1356" y="116" width="56" height="36" rx="7" fill="#ffffff" stroke="#8568b8" stroke-width="1.3" />
+    <text x="1384" y="138" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1e293b">Report</text>
+
+    
+    <g transform="translate(1206 178) scale(0.25)">
+      <ellipse fill="#1b1b1f" opacity="0.14" cx="100" cy="194" rx="56" ry="7" />
+      
+      <circle cx="100" cy="112" r="76" fill="#B9A6FF" style="" />
+      <g transform="rotate(0 100 112)">
+        <path class="p-ink" d="M100 40 C 100 32, 100 24, 100 14 M100 24 C 92 14, 82 14, 78 20 C 86 26, 94 26, 100 24 M100 20 C 108 10, 120 10, 124 16 C 116 22, 106 22, 100 20" />
+        <path class="p-ink" d="M62 86Q74 84 86 86" opacity="0" />
+        <path class="p-ink" d="M114 86Q126 84 138 86" opacity="0" />
+        <path class="p-ink" d="M64 106Q74 93 84 106" stroke-width="4.5" opacity="1" />
+        <path class="p-ink" d="M116 106Q126 93 136 106" stroke-width="4.5" opacity="1" />
+        <path class="p-ink" d="M100 98 C 100 110, 98 120, 96 126 C 100 129, 104 129, 108 127" transform="translate(0 0)" />
+        <path class="p-mouth" d="M68 140C89.3 157 110.7 157 132 140C110.7 157 89.3 157 68 140Z" />
+      </g>
+      
+      <g transform="translate(200 30) scale(1.08) translate(-200 -30)">
+        <path class="mark-ink mark-heavy" d="M170 16 L198 46 L244 -16" />
+      </g>
+    </g>
+  
+    <text x="1278" y="212" font-size="12" font-weight="700" fill="#6b46c1">Reproducible Bundle</text>
+    <text x="1278" y="229" font-size="10" fill="#475569">Report · Scripts · Data</text>
+
+    <line x1="1212" y1="256" x2="1410" y2="256" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="3 3" />
+
+    <text x="1212" y="280" class="title" font-size="11.5">History &amp; Replay</text>
+    <text x="1212" y="300" class="sub">Live event stream (SSE)</text>
+    <text x="1212" y="318" class="sub">Reconnect from last event</text>
+    <text x="1212" y="336" class="sub">Read-only replay (no rerun)</text>
+
+    <!-- Generated outputs box -->
+    <rect x="1198" y="382" width="226" height="124" rx="12" fill="#ffffff" stroke="#8568b8" stroke-width="1.4" stroke-dasharray="5 3.5" />
+    <text x="1311" y="404" text-anchor="middle" class="title" font-size="12">Generated outputs</text>
+    
+    <g transform="translate(1210 422)">
+      <rect x="0" y="0" width="28" height="36" rx="4" fill="#ffffff" stroke="#3b71ca" stroke-width="1.4" />
+      <line x1="6" y1="10" x2="22" y2="10" stroke="#3b71ca" stroke-width="1.7" stroke-linecap="round" />
+      <line x1="6" y1="17" x2="22" y2="17" stroke="#3b71ca" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="23" x2="22" y2="23" stroke="#3b71ca" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="29" x2="16" y2="29" stroke="#3b71ca" stroke-width="1.4" stroke-linecap="round" opacity="0.65" />
+      <text x="14" y="51" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">PDF</text>
+    </g>
+    
+    <g transform="translate(1253 422)">
+      <rect x="0" y="0" width="28" height="36" rx="4" fill="#ffffff" stroke="#e0863b" stroke-width="1.4" />
+      <line x1="6" y1="10" x2="22" y2="10" stroke="#e0863b" stroke-width="1.7" stroke-linecap="round" />
+      <line x1="6" y1="17" x2="22" y2="17" stroke="#e0863b" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="23" x2="22" y2="23" stroke="#e0863b" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="29" x2="16" y2="29" stroke="#e0863b" stroke-width="1.4" stroke-linecap="round" opacity="0.65" />
+      <text x="14" y="51" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">DOCX</text>
+    </g>
+    
+      <g transform="translate(1296 422)">
+        <rect x="0" y="0" width="28" height="36" rx="4" fill="#1e293b" stroke="#0f172a" stroke-width="1.3" />
+        <text x="14" y="22" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac" font-family="ui-monospace, Menlo, monospace">&lt;/&gt;</text>
+        <text x="14" y="51" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">Scripts</text>
+      </g>
+    
+    <g transform="translate(1339 422)">
+      <rect x="0" y="0" width="28" height="36" rx="4" fill="#ffffff" stroke="#5c9b5c" stroke-width="1.4" />
+      <line x1="6" y1="10" x2="22" y2="10" stroke="#5c9b5c" stroke-width="1.7" stroke-linecap="round" />
+      <line x1="6" y1="17" x2="22" y2="17" stroke="#5c9b5c" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="23" x2="22" y2="23" stroke="#5c9b5c" stroke-width="1.4" stroke-linecap="round" opacity="0.75" />
+      <line x1="6" y1="29" x2="16" y2="29" stroke="#5c9b5c" stroke-width="1.4" stroke-linecap="round" opacity="0.65" />
+      <text x="14" y="51" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">CSV</text>
+    </g>
+    
+      <g transform="translate(1382 422)">
+        <rect x="0" y="0" width="28" height="36" rx="4" fill="#ffffff" stroke="#8568b8" stroke-width="1.4" />
+        <rect x="5" y="21" width="4" height="9" rx="1" fill="#8568b8" opacity="0.65" />
+        <rect x="12" y="13" width="4" height="17" rx="1" fill="#8568b8" />
+        <rect x="19" y="17" width="4" height="13" rx="1" fill="#8568b8" opacity="0.82" />
+        <line x1="4" y1="30.5" x2="24" y2="30.5" stroke="#8568b8" stroke-width="1.1" />
+        <text x="14" y="51" text-anchor="middle" font-size="9.5" font-weight="600" fill="#475569">PNG</text>
+      </g>
+  </g>
+
+  <!-- Support Agent -> CLI & API Client -->
+  <line x1="1148" y1="280" x2="1196" y2="280" stroke="#1f2937" stroke-width="1.6" marker-end="url(#arr-dark)" />
+  <!-- Event Store -> CLI & API Client (History & Replay) -->
+  <path d="M 1147 458 L 1183 458 L 1183 326 L 1196 326" fill="none" stroke="#1f2937" stroke-width="1.5" marker-end="url(#arr-dark)" />
+
+  <!-- Top Follow-up Red Feedback Loop -->
+  <path d="M 1311 56 L 1311 30 L 674 30 L 674 90" fill="none" stroke="#c0392b" stroke-width="1.7" stroke-dasharray="6 3.5" marker-end="url(#arr-red)" />
+  <text x="992" y="21" text-anchor="middle" font-size="11.2" font-weight="700" fill="#c0392b">Follow-up → answer or next round</text>
+
+  <!-- ================= LEGEND & FIGURE CAPTION ================= -->
+  <g transform="translate(290 538)">
+    <line x1="0" y1="0" x2="54" y2="0" stroke="#1f2937" stroke-width="1.7" marker-end="url(#arr-dark)" />
+    <text x="64" y="4" class="sub">data flow</text>
+
+    <line x1="215" y1="0" x2="269" y2="0" stroke="#e0863b" stroke-width="1.7" marker-end="url(#arr-orange)" />
+    <text x="279" y="4" class="sub">dispatch</text>
+
+    <line x1="435" y1="0" x2="489" y2="0" stroke="#5c9b5c" stroke-width="1.7" stroke-dasharray="4 3" marker-end="url(#arr-green)" />
+    <text x="499" y="4" class="sub">tool call</text>
+
+    <line x1="655" y1="0" x2="709" y2="0" stroke="#c0392b" stroke-width="1.7" stroke-dasharray="5 3" marker-end="url(#arr-red)" />
+    <text x="719" y="4" class="sub">debate / feedback</text>
+  </g>
+
+  <text x="720" y="576" text-anchor="middle" font-size="12.5" fill="#1e293b">Figure 1. Libra Reproduce Backend architecture.</text>
+</svg>

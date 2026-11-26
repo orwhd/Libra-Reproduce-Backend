@@ -11,7 +11,7 @@
 ![Project 2 Pure-Backend System Architecture](design/project2_system_architecture.png)
 
 - Vector PDF: [`design/project2_system_architecture.pdf`](design/project2_system_architecture.pdf)
-- Figure generator script: [`design/generate_project2_figure.py`](design/generate_project2_figure.py)
+- Editable Vector SVG: [`design/project2_system_architecture.svg`](design/project2_system_architecture.svg)
 - Design docs & contracts: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) · [`docs/decisions/ADR-V2-01-to-07.md`](docs/decisions/ADR-V2-01-to-07.md) · [`contracts/openapi.yaml`](contracts/openapi.yaml)
 
 ---
