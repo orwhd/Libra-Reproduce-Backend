@@ -35,6 +35,9 @@ def build_reproduction_reports(
     debate_records: list[dict[str, Any]],
     sdk_provider_used: str,
     script_sha256: str,
+    multiround_summary: dict[str, Any] | None = None,
+    fig_multiround_path: Path | None = None,
+    agent_experiment_rounds: list[dict[str, Any]] | None = None,
 ) -> dict[str, Path]:
     """
     Generate both Word (.docx) and PDF (.pdf) scientific reproduction reports from verified
@@ -65,6 +68,9 @@ def build_reproduction_reports(
         debate_records=debate_records,
         sdk_provider_used=sdk_provider_used,
         script_sha256=script_sha256,
+        multiround_summary=multiround_summary,
+        fig_multiround_path=fig_multiround_path,
+        agent_experiment_rounds=agent_experiment_rounds,
     )
     _write_pdf_report(
         pdf_path=pdf_path,
@@ -80,6 +86,9 @@ def build_reproduction_reports(
         debate_records=debate_records,
         sdk_provider_used=sdk_provider_used,
         script_sha256=script_sha256,
+        multiround_summary=multiround_summary,
+        fig_multiround_path=fig_multiround_path,
+        agent_experiment_rounds=agent_experiment_rounds,
     )
     return {"docx_path": docx_path, "pdf_path": pdf_path}
 
@@ -99,6 +108,9 @@ def _write_docx_report(
     debate_records: list[dict[str, Any]],
     sdk_provider_used: str,
     script_sha256: str,
+    multiround_summary: dict[str, Any] | None = None,
+    fig_multiround_path: Path | None = None,
+    agent_experiment_rounds: list[dict[str, Any]] | None = None,
 ) -> None:
     doc = docx.Document()
     normal_style = doc.styles["Normal"]
@@ -198,6 +210,34 @@ def _write_docx_report(
             "and right-truncated 2015-2021 cohorts. (b) Bounded S2 independent citation-graph recomputation (5-year vs. 10-year window)."
         )
 
+    if multiround_summary:
+        doc.add_heading("4B. Multi-Round Experimental Trials, Falsification & Mechanistic Simulation", level=2)
+        fe = multiround_summary.get("fixed_effects_field_decade") or {}
+        perm = multiround_summary.get("permutation_null") or {}
+        jack = multiround_summary.get("jackknife") or {}
+        sim = multiround_summary.get("mechanistic_simulation") or {}
+        trials_bullets = [
+            f"Round 2A (Two-Way Field×Decade Fixed Effects & Citation-Quartile Control): FWL within-stratum OLS slope = {fe.get('slope', 0.0):.5f}/author (p = {fe.get('p_value', 1.0):.2e}) across {fe.get('n_strata', 0)} field×decade strata.",
+            f"Round 2B ({perm.get('n_permutations', 200)}-Trial Within-Stratum Monte Carlo Permutation Null): observed slope = {perm.get('observed_slope', 0.0):.5f} vs. null mean = {perm.get('null_mean', 0.0):.5f} (z = {perm.get('z_score', 0.0):.2f}, empirical p = {perm.get('p_value', 1.0):.5f}).",
+            f"Round 2C (Leave-One-Discipline-Out Jackknife): {jack.get('negative_count', 0)}/{jack.get('total_strata', 0)} strata retain negative slope (range [{jack.get('min_slope', 0.0):.5f}, {jack.get('max_slope', 0.0):.5f}]).",
+            f"Round 2D (Mechanistic Citation-Network Simulation, Exact CD Formula): Treatment M1 (differential search breadth) slope = {sim.get('m1_slope', 0.0):.4f} vs. Size-Invariant Control M2 slope = {sim.get('m2_slope', 0.0):.4f}.",
+        ]
+        for tb in trials_bullets:
+            doc.add_paragraph(tb, style="List Bullet")
+        for tr in (agent_experiment_rounds or []):
+            if tr.get("kind") == "agent_python_trial" and tr.get("ok"):
+                doc.add_paragraph(
+                    f"Live Agent-Authored Trial ({tr.get('script_name')}, SHA-256 {str(tr.get('script_sha256', ''))[:12]}): "
+                    f"{tr.get('hypothesis')} -> {str(tr.get('stdout', '')).strip()[:220]}",
+                    style="List Bullet",
+                )
+        if fig_multiround_path and fig_multiround_path.exists():
+            doc.add_picture(str(fig_multiround_path), width=Inches(6.2))
+            doc.add_paragraph(
+                "Figure 3: Multi-round experimental validation suite (Citation-quartile confounder control, "
+                "200-trial permutation null, leave-one-out jackknife, and M1 vs. M2 generative citation-network simulation)."
+            )
+
     doc.add_heading("5. Multi-Agent Validation Debate & Research Gain", level=2)
     for drec in debate_records:
         doc.add_paragraph(
@@ -243,6 +283,9 @@ def _write_pdf_report(
     debate_records: list[dict[str, Any]],
     sdk_provider_used: str,
     script_sha256: str,
+    multiround_summary: dict[str, Any] | None = None,
+    fig_multiround_path: Path | None = None,
+    agent_experiment_rounds: list[dict[str, Any]] | None = None,
 ) -> None:
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -374,6 +417,38 @@ def _write_pdf_report(
                 caption_style,
             )
         )
+
+    if multiround_summary:
+        story.append(Paragraph("3B. Multi-Round Experimental Trials &amp; Mechanistic Simulation", h2_style))
+        fe = multiround_summary.get("fixed_effects_field_decade") or {}
+        perm = multiround_summary.get("permutation_null") or {}
+        jack = multiround_summary.get("jackknife") or {}
+        sim = multiround_summary.get("mechanistic_simulation") or {}
+        story.append(
+            Paragraph(
+                f"• <b>Round 2A (Field×Decade FE &amp; Citation Quartiles):</b> FWL slope = {fe.get('slope', 0.0):.5f}/author (p = {fe.get('p_value', 1.0):.2e}, {fe.get('n_strata', 0)} strata).<br/>"
+                f"• <b>Round 2B ({perm.get('n_permutations', 200)}-Trial Permutation Null):</b> observed slope {perm.get('observed_slope', 0.0):.5f} vs. null {perm.get('null_mean', 0.0):.5f} (z = {perm.get('z_score', 0.0):.2f}, p = {perm.get('p_value', 1.0):.5f}).<br/>"
+                f"• <b>Round 2C (Leave-One-Out Jackknife):</b> {jack.get('negative_count', 0)}/{jack.get('total_strata', 0)} strata negative (range [{jack.get('min_slope', 0.0):.5f}, {jack.get('max_slope', 0.0):.5f}]).<br/>"
+                f"• <b>Round 2D (Mechanistic Citation-Network Simulation):</b> Treatment M1 slope = {sim.get('m1_slope', 0.0):.4f} vs. Size-Invariant Control M2 slope = {sim.get('m2_slope', 0.0):.4f}.",
+                body_style,
+            )
+        )
+        for tr in (agent_experiment_rounds or []):
+            if tr.get("kind") == "agent_python_trial" and tr.get("ok"):
+                story.append(
+                    Paragraph(
+                        f"• <b>Agent-Authored Trial ({tr.get('script_name')}):</b> {tr.get('hypothesis')} | Output: {str(tr.get('stdout', '')).strip()[:180]}",
+                        body_style,
+                    )
+                )
+        if fig_multiround_path and fig_multiround_path.exists():
+            story.append(RLImage(str(fig_multiround_path), width=6.4 * inch, height=4.44 * inch))
+            story.append(
+                Paragraph(
+                    "Figure 3: Counterfactual confounder control, within-stratum Monte Carlo permutation null, leave-one-out jackknife stability, and mechanistic citation-network simulation (M1 vs. M2).",
+                    caption_style,
+                )
+            )
 
     story.append(Paragraph("4. Validation Debate, Limitations &amp; Reproduction Command", h2_style))
     for drec in debate_records:

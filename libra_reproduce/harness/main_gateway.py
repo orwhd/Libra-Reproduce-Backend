@@ -158,7 +158,7 @@ class MainAgentGateway:
                 target_ids=["persona_main"],
                 subject=EventSubject(kind="run", id=run_id),
                 status="running",
-                summary=f"Main Agent accepted command ({command_id}): {text[:90]}",
+                summary=f"Boss Agent accepted command ({command_id}): {text[:90]}",
                 payload={
                     "command_id": command_id,
                     "selected_context": cmd.selected_context.model_dump() if cmd.selected_context else None,
@@ -169,11 +169,11 @@ class MainAgentGateway:
             return ev
 
         if is_dynamic_spawn_followup:
-            ack_msg = "Main Agent accepted the dynamic multi-agent scaling request and is spawning specialist instances."
+            ack_msg = "Boss Agent accepted the dynamic multi-agent scaling request and is spawning specialist instances."
         elif is_roundtable_followup:
-            ack_msg = "Main Agent accepted the methodological review request and is convening the research team."
+            ack_msg = "Boss Agent accepted the methodological review request and is convening the research team."
         else:
-            ack_msg = "Main Agent accepted the reproduction plan and dispatched Paper, Data, Analysis, and Validation under Scheduler governance."
+            ack_msg = "Boss Agent accepted the reproduction plan and dispatched Paper, Data, Analysis, and Validation under Scheduler governance."
 
         resp, was_dup, _ = self.store.record_command_atomic(
             run_id=run_id,
@@ -263,7 +263,7 @@ class MainAgentGateway:
         ev_items = snap.evidence or []
         debates = snap.debates or []
         ctx_note = f" (Context: `{selected_ctx.kind}:{selected_ctx.id}`)" if selected_ctx else ""
-        parts = [f"**Main Agent Read-Only Summary{ctx_note}**:"]
+        parts = [f"**Boss Agent Read-Only Summary{ctx_note}**:"]
         if debates:
             d = debates[-1]
             parts.append(

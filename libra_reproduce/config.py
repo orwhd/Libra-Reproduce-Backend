@@ -126,6 +126,14 @@ def resolve_llm_runtime_config() -> dict[str, Any]:
     except (TypeError, ValueError):
         max_concurrency = 4
 
+    thinking_effort = str(
+        saved.get("thinking_effort")
+        or os.getenv("REPRODUCE_THINKING_EFFORT")
+        or "high"
+    ).strip().lower()
+    if thinking_effort not in ("low", "medium", "high"):
+        thinking_effort = "high"
+
     has_claude_cli = bool(shutil.which("claude"))
     has_anthropic_key = bool((os.getenv("ANTHROPIC_API_KEY") or "").strip())
 
@@ -138,6 +146,7 @@ def resolve_llm_runtime_config() -> dict[str, Any]:
         "openai_base_url": openai_base_url,
         "openai_model": openai_model,
         "max_concurrency": max_concurrency,
+        "thinking_effort": thinking_effort,
         "openalex_email": (os.getenv("OPENALEX_EMAIL") or "").strip(),
         "openalex_api_key": (os.getenv("OPENALEX_API_KEY") or "").strip(),
     }

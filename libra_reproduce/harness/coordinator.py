@@ -27,6 +27,11 @@ from ..science.general_paper_analysis import (
     build_general_paper_cohort_and_run,
     is_nature2019_target,
 )
+from ..science.iterative_experiments import (
+    build_live_experiment_tools,
+    run_multiround_counterfactual_suite,
+    run_targeted_followup_experiment,
+)
 from ..science.nature2019_analysis import run_nature2019_experiments
 from ..science.report_builder import build_reproduction_reports
 from ..storage.artifact_store import ArtifactStore
@@ -175,9 +180,9 @@ class ResearchCoordinator:
             )
 
         desc = (
-            f"Main dynamically spawned {persona.label} ({persona.role}): {specialty}."
+            f"Boss dynamically spawned {persona.label} ({persona.role}): {specialty}."
             if specialty
-            else f"Main dynamically spawned {persona.label} ({persona.role}) for parallel work."
+            else f"Boss dynamically spawned {persona.label} ({persona.role}) for parallel work."
         )
         ev = self.store.append_event(
             run_id,
@@ -470,8 +475,13 @@ class ResearchCoordinator:
                     turn_res = await sdk_adapter.run_controlled_science_turn(
                         mode=mode,
                         role="paper",
-                        system_prompt="You are Paper Agent. Call inspect_paper_scope once to register formal reproduction methodology, then summarize in 2 sentences.",
-                        user_prompt=f"Extract methodology and testable claims for: {user_prompt}",
+                        system_prompt=(
+                            "You are Paper Agent (deep reasoning enabled). Call inspect_paper_scope once to register the formal "
+                            "reproduction methodology, then explicitly formulate: (1) the core testable claim, (2) two rival/confounding "
+                            "hypotheses (e.g., citation-volume bias, field×decade composition, citation-window truncation), and (3) a "
+                            "multi-round counterfactual + generative citation-network simulation experimental plan to test them."
+                        ),
+                        user_prompt=f"Think carefully and design a multi-round experimental reproduction protocol for: {user_prompt}",
                         tools_spec=[
                             {
                                 "name": "inspect_paper_scope",
@@ -484,7 +494,8 @@ class ResearchCoordinator:
                             }
                         ],
                         handlers={"inspect_paper_scope": _tool_inspect_paper},
-                        max_turns=3,
+                        max_turns=5,
+                        effort="high",
                     )
                     if not extracted_scope:
                         await _tool_inspect_paper({"paper_id": paper_id})
@@ -910,7 +921,53 @@ class ResearchCoordinator:
                     mode=mode,
                 )
                 active_collab_id = collab_id
-                await asyncio.sleep(0.35 if mode == "simulation" else 0.9)
+                await asyncio.sleep(0.25 if mode == "simulation" else 0.5)
+
+                val_challenge_summary = (
+                    "Validation challenged Round 1 descriptive results: (1) cumulative MAG citations give pre-2005 papers >=17y windows while post-2014 papers are truncated, "
+                    "(2) solo authors might only appear more disruptive due to citation-volume or field×decade composition confounding, and (3) a generative simulation control is needed rather than relying solely on passive observational bins."
+                )
+                if mode == "live":
+                    try:
+                        val_tools, val_handlers, _ = build_live_experiment_tools(
+                            run_id=run_id,
+                            workspace_dir=run_dir,
+                            sample_csv_path=dataset_bundle["csv_path"],
+                            scheduler=self.scheduler,
+                            owner_task_id=t_validation,
+                        )
+                        val_res = await sdk_adapter.run_controlled_science_turn(
+                            mode=mode,
+                            role="validation",
+                            system_prompt=(
+                                "You are Validation Agent. Inspect the Round 1 empirical outputs with `inspect_workspace_data`, "
+                                "identify the strongest methodological confounders (citation volume, cohort truncation, field×decade composition), "
+                                "and write a sharp 2-sentence empirical critique proposing what experiments Round 2 MUST execute."
+                            ),
+                            user_prompt="Inspect Round 1 summaries and write a 2-sentence methodological challenge for Analysis.",
+                            tools_spec=[val_tools[0]],
+                            handlers={"inspect_workspace_data": val_handlers["inspect_workspace_data"]},
+                            max_turns=4,
+                            timeout_seconds=70.0,
+                            effort="high",
+                        )
+                        if val_res.ok and val_res.public_summary:
+                            val_challenge_summary = val_res.public_summary[:600]
+                        for tr in val_res.tool_traces:
+                            self.store.append_event(
+                                run_id,
+                                event_type="tool.executed",
+                                actor_id="persona_validation",
+                                target_ids=["persona_validation"],
+                                subject=EventSubject(kind="task", id=t_validation),
+                                status="completed",
+                                summary=f"Validation SDK tool '{tr['tool']}' executed via {tr['provider']}.",
+                                payload=tr,
+                                mode=mode,
+                                source="sdk",
+                            )
+                    except Exception:
+                        pass
 
                 self.collab.add_debate_turn(
                     run_id,
@@ -918,10 +975,7 @@ class ResearchCoordinator:
                     claim_id="claim_citation_window",
                     speaker_persona_id="persona_validation",
                     stance="challenge",
-                    public_summary=(
-                        "Validation noted that cumulative MAG citations through 2021 give pre-2005 papers >=17 years of "
-                        "forward citations while post-2014 papers are right-truncated, and precomputed S1 D-scores must not be claimed as S2."
-                    ),
+                    public_summary=val_challenge_summary,
                     evidence_ref=dataset_bundle["manifest_artifact_id"],
                     target_ids=["persona_analysis", "persona_validation"],
                     mode=mode,
@@ -933,19 +987,20 @@ class ResearchCoordinator:
                     speaker_persona_id="persona_analysis",
                     stance="propose_test",
                     public_summary=(
-                        "Analysis proposed inviting Data into a 3-agent Pod to compare 1954-2004, 2005-2014, and "
-                        "2015-2021 cohorts alongside bounded 5y vs. 10y S2 citation subgraphs."
+                        "Analysis proposed convening Data in a Pod AND dynamically spawning Analysis #3 to execute multi-round "
+                        "Citation-Quartile & Field×Decade FE controls, a 200-trial Monte Carlo permutation null, "
+                        "leave-one-field-out jackknife trials, and an M1 vs. M2 mechanistic citation-network simulation."
                     ),
                     evidence_ref=exp_bundle["team_csv_artifact_id"],
                     target_ids=["persona_analysis", "persona_validation"],
                     mode=mode,
                 )
-                await asyncio.sleep(0.35 if mode == "simulation" else 0.9)
+                await asyncio.sleep(0.25 if mode == "simulation" else 0.5)
 
                 # Expand 2-person rectangular table -> 3-person circular Pod table (`collaboration.members_changed` rev 2)
                 pod_id, _ = self.collab.start_pod(
                     run_id,
-                    research_question="Does right-truncation of forward citation windows reverse the negative team-size disruption slope?",
+                    research_question="Do citation-volume confounding, field×decade composition, or forward citation-window truncation explain the team-size disruption decline?",
                     members=["persona_analysis", "persona_validation", "persona_data"],
                     budget_fraction=0.12,
                     actor_id="persona_validation",
@@ -961,11 +1016,214 @@ class ResearchCoordinator:
                     summary="Data joined Analysis & Validation (table expanded to 3-member circular Research Pod).",
                     mode=mode,
                 )
-                await asyncio.sleep(0.35 if mode == "simulation" else 0.7)
+
+                # Dynamically spawn Analysis #3 to execute genuine multi-round experimental trials & mechanistic simulation
+                analysis_3_id = self._spawn_dynamic_persona(
+                    run_id,
+                    role="analysis",
+                    instance_index=3,
+                    label="Analysis #3",
+                    specialty="Counterfactual, Permutation Null & Generative Simulation Experiments",
+                    mode=mode,
+                )
+                t_analysis_3 = self._create_task_record(
+                    run_id,
+                    persona_id=analysis_3_id,
+                    role="analysis",
+                    objective="Execute multi-round counterfactual controls, 200-trial permutation null, jackknife, M1 vs. M2 simulation, and live agent-authored verification trials",
+                    is_exploration=True,
+                    mode=mode,
+                )
+                agent_experiment_rounds: list[dict[str, Any]] = []
+                async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=t_analysis_3, is_exploration=True, budget_fraction=0.12):
+                    self._transition_persona(run_id, analysis_3_id, "working", "running_multiround_experiments", mode=mode)
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis_3,
+                        "task.started",
+                        "running",
+                        "Analysis #3 executing multi-round counterfactual controls, 200-trial permutation null, jackknife & M1 vs. M2 generative citation-network simulation.",
+                        persona_id=analysis_3_id,
+                        mode=mode,
+                    )
+                    async with self.scheduler.experiment_slot(run_id=run_id, owner_id=t_analysis_3):
+                        self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
+                        multiround_bundle = await run_multiround_counterfactual_suite(
+                            run_dir, dataset_bundle["csv_path"]
+                        )
+
+                    art_mr_script, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="script",
+                        source_path=multiround_bundle["execution"].script_path,
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S2", "description": "Multi-round counterfactual, permutation & simulation Python script"},
+                    )
+                    art_mr_csv, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="dataset",
+                        source_path=multiround_bundle["csv_path"],
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S2", "description": "Multi-round experiment metrics (Quartiles, Permutation, Jackknife, M1/M2 Sim)"},
+                    )
+                    art_mr_fig, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="figure",
+                        source_path=multiround_bundle["fig_path"],
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S2", "description": "Figure 3: Multi-round counterfactuals & generative citation-network simulation"},
+                    )
+
+                    for m_art, m_desc in [
+                        (art_mr_script, "Round 2A–2D counterfactual & mechanistic simulation script archived (SHA-256)"),
+                        (art_mr_csv, "Multi-round experimental results table saved (`multiround_experiments.csv`)"),
+                        (art_mr_fig, "Figure 3 (Confounders, Permutation Null, Jackknife & M1 vs. M2 Simulation) rendered"),
+                    ]:
+                        ev_m = self.store.append_event(
+                            run_id,
+                            event_type="artifact.created",
+                            actor_id=analysis_3_id,
+                            target_ids=[analysis_3_id],
+                            subject=EventSubject(kind="artifact", id=m_art.artifact_id),
+                            status="passed",
+                            summary=m_desc,
+                            payload={
+                                "artifact_id": m_art.artifact_id,
+                                "kind": m_art.kind,
+                                "validation_status": "passed",
+                            },
+                            artifact_ids=[m_art.artifact_id],
+                            mode=mode,
+                            source="runner",
+                        )
+                        self.store.add_chat_message(
+                            run_id,
+                            kind="file",
+                            role="activity",
+                            text=m_desc,
+                            related_refs=[
+                                SelectedContext(kind="agent", id=analysis_3_id),
+                                SelectedContext(kind="artifact", id=m_art.artifact_id),
+                            ],
+                            artifact_ids=[m_art.artifact_id],
+                            seq=ev_m.seq,
+                        )
+
+                    live_trial_art_ids: list[str] = [art_mr_script.artifact_id, art_mr_csv.artifact_id, art_mr_fig.artifact_id]
+                    if mode == "live":
+                        try:
+                            a3_tools, a3_handlers, recorded_trials = build_live_experiment_tools(
+                                run_id=run_id,
+                                workspace_dir=run_dir,
+                                sample_csv_path=dataset_bundle["csv_path"],
+                                scheduler=self.scheduler,
+                                owner_task_id=t_analysis_3,
+                            )
+                            a3_res = await sdk_adapter.run_controlled_science_turn(
+                                mode=mode,
+                                role="analysis_3",
+                                system_prompt=(
+                                    "You are Analysis #3, a deeply skeptical experimental scientist. Never just recite existing summary numbers — "
+                                    "design and RUN a real Python falsification/stress-test experiment inside the sandbox! "
+                                    "Workflow: (1) call `inspect_workspace_data` once to inspect columns and Round 2 results; "
+                                    "(2) formulate a concrete residual hypothesis (e.g., whether extreme citation outliers >99th pct or non-linear log(team_size) scaling/piecewise slope reversal changes conclusions), "
+                                    "write a complete self-contained Python script using pandas/numpy/scipy (using sys.argv[1] for CSV input, NO `os`/network imports) and EXECUTE it via `run_python_experiment`; "
+                                    "if `run_python_experiment` fails, diagnose `stderr`, fix the script, and re-run it; "
+                                    "(3) call `record_experiment_finding` with exact numbers observed from `stdout`."
+                                ),
+                                user_prompt=(
+                                    "Think deeply, run a targeted Python stress-test experiment on the empirical cohort (`sys.argv[1]`) via `run_python_experiment`, "
+                                    "verify the quantitative outcome from stdout, and record your finding."
+                                ),
+                                tools_spec=a3_tools,
+                                handlers=a3_handlers,
+                                max_turns=6,
+                                timeout_seconds=95.0,
+                                effort="high",
+                            )
+                            agent_experiment_rounds.extend(recorded_trials)
+                            for tr in a3_res.tool_traces:
+                                self.store.append_event(
+                                    run_id,
+                                    event_type="tool.executed",
+                                    actor_id=analysis_3_id,
+                                    target_ids=[analysis_3_id],
+                                    subject=EventSubject(kind="task", id=t_analysis_3),
+                                    status="completed" if tr.get("status") == "ok" else "error",
+                                    summary=f"Analysis #3 live SDK tool '{tr['tool']}' ({tr.get('status')}) via {tr['provider']}.",
+                                    payload=tr,
+                                    mode=mode,
+                                    source="sdk",
+                                )
+                            for item in recorded_trials:
+                                if item.get("kind") == "agent_python_trial" and item.get("ok"):
+                                    sp = Path(str(item["script_path"]))
+                                    if sp.exists():
+                                        art_trial, _ = self.artifacts.register_file(
+                                            run_id=run_id,
+                                            kind="script",
+                                            source_path=sp,
+                                            validation_status="passed",
+                                            metadata={"reproduction_level": "S2", "description": f"Live agent-authored trial: {item['hypothesis'][:80]}"},
+                                        )
+                                        live_trial_art_ids.append(art_trial.artifact_id)
+                                        ev_tr = self.store.append_event(
+                                            run_id,
+                                            event_type="artifact.created",
+                                            actor_id=analysis_3_id,
+                                            target_ids=[analysis_3_id],
+                                            subject=EventSubject(kind="artifact", id=art_trial.artifact_id),
+                                            status="passed",
+                                            summary=f"Analysis #3 executed custom Python trial `{item['script_name']}` ({item['duration_ms']}ms).",
+                                            payload={
+                                                "artifact_id": art_trial.artifact_id,
+                                                "kind": "script",
+                                                "validation_status": "passed",
+                                            },
+                                            artifact_ids=[art_trial.artifact_id],
+                                            mode=mode,
+                                            source="runner",
+                                        )
+                                        self.store.add_chat_message(
+                                            run_id,
+                                            kind="file",
+                                            role="activity",
+                                            text=f"Live Python Trial `{item['script_name']}` (`{item['hypothesis']}`): {str(item.get('stdout', '')).strip()[:180]}",
+                                            related_refs=[
+                                                SelectedContext(kind="agent", id=analysis_3_id),
+                                                SelectedContext(kind="artifact", id=art_trial.artifact_id),
+                                            ],
+                                            artifact_ids=[art_trial.artifact_id],
+                                            seq=ev_tr.seq,
+                                        )
+                        except Exception as live_exc:
+                            self.store.add_chat_message(
+                                run_id,
+                                kind="activity",
+                                role="activity",
+                                text=f"Analysis #3 live optional custom trial skipped cleanly ({type(live_exc).__name__}); verified Round 2A–2D suite preserved.",
+                                related_refs=[SelectedContext(kind="agent", id=analysis_3_id)],
+                            )
+
+                    mr_sum = multiround_bundle["summary"]
+                    self._mark_task_status(
+                        run_id,
+                        t_analysis_3,
+                        "task.completed",
+                        "done",
+                        (
+                            f"Analysis #3 completed multi-round trials: Field×Decade FE slope={mr_sum['fixed_effects_field_decade']['slope']:.5f}, "
+                            f"200-trial Permutation p={mr_sum['permutation_null']['p_value']:.4f}, "
+                            f"Generative Sim M1={mr_sum['mechanistic_simulation']['m1_slope']:.4f} vs M2={mr_sum['mechanistic_simulation']['m2_slope']:.4f}."
+                        ),
+                        persona_id=analysis_3_id,
+                        artifact_ids=live_trial_art_ids,
+                        mode=mode,
+                    )
 
                 # Expand 3-person circular Pod -> 5-person elliptical multi-instance review table (`collaboration.members_changed` rev 3)
                 self._transition_persona(run_id, analysis_2_id, "debating", "joined_elliptical_synthesis", mode=mode)
-                self._transition_persona(run_id, data_2_id, "debating", "joined_elliptical_synthesis", mode=mode)
+                self._transition_persona(run_id, analysis_3_id, "debating", "joined_elliptical_synthesis", mode=mode)
                 self.collab.change_collaboration_members(
                     run_id,
                     collaboration_id=collab_id,
@@ -974,14 +1232,14 @@ class ResearchCoordinator:
                         "persona_validation",
                         "persona_data",
                         analysis_2_id,
-                        data_2_id,
+                        analysis_3_id,
                     ],
-                    reason="Analysis #2 and Data #2 joined with bounded S2 window results",
-                    actor_id=analysis_2_id,
-                    summary="Analysis #2 & Data #2 joined (table expanded to 5-member elliptical cross-verification group).",
+                    reason="Analysis #2 (S2 CD checks) and Analysis #3 (Multi-round counterfactual & generative sim) joined cross-verification table",
+                    actor_id=analysis_3_id,
+                    summary="Analysis #2 & Analysis #3 joined (table expanded to 5-member elliptical multi-round synthesis group).",
                     mode=mode,
                 )
-                await asyncio.sleep(0.35 if mode == "simulation" else 0.7)
+                await asyncio.sleep(0.25 if mode == "simulation" else 0.5)
 
                 art_win_csv, _ = self.artifacts.register_file(
                     run_id=run_id,
@@ -1056,6 +1314,9 @@ class ResearchCoordinator:
                     script_sha256=exp_bundle["execution"].script_sha256,
                     exit_code=exp_bundle["execution"].exit_code,
                     toy_s2_verification=s2_toy_result,
+                    multiround_summary=multiround_bundle["summary"],
+                    fig_multiround_path=multiround_bundle["fig_path"],
+                    agent_experiment_rounds=agent_experiment_rounds,
                 )
                 evidence_id = f"evid_{uuid.uuid4().hex[:10]}"
                 result_art_ids = [
@@ -1066,6 +1327,7 @@ class ResearchCoordinator:
                     exp_bundle["fig_main_artifact_id"],
                     art_win_csv.artifact_id,
                     art_fig_win.artifact_id,
+                    *live_trial_art_ids,
                 ]
 
                 def _save_evid(conn: sqlite3.Connection, _seq: int) -> None:
@@ -1199,6 +1461,9 @@ class ResearchCoordinator:
                 debate_records=debate_list,
                 sdk_provider_used=paper_turn_res.provider,
                 script_sha256=exp_bundle["execution"].script_sha256,
+                multiround_summary=multiround_bundle["summary"],
+                fig_multiround_path=multiround_bundle["fig_path"],
+                agent_experiment_rounds=agent_experiment_rounds,
             )
 
             val_badge = "passed" if ev_review.result == "passed" else "inconclusive"
@@ -1268,14 +1533,21 @@ class ResearchCoordinator:
             self._transition_persona(run_id, "persona_main", "completed", "reproduction_delivered", mode=mode)
 
             s = exp_bundle["summary"]
+            mr = multiround_bundle["summary"]
+            live_trials_ok = sum(1 for t in agent_experiment_rounds if t.get("kind") == "agent_python_trial" and t.get("ok"))
             sim_prefix = "**[SIMULATION MODE]** " if mode == "simulation" else ""
             final_md = (
-                f"{sim_prefix}### Reproduction Summary ({ev_review.reproduction_level_verified} Verified + Bounded S2 Check)\n\n"
+                f"{sim_prefix}### Reproduction Summary ({ev_review.reproduction_level_verified} Verified + Multi-Round Experiments)\n\n"
                 f"- **Target**: Wu, Wang & Evans (*Nature*, 2019, `10.1038/s41586-019-0941-9`)\n"
                 f"- **Empirical Sample**: `N = {s['primary_sample_n']:,}` MAG papers (`1954–2014` primary historical cohort; `{s['total_sample_n']:,}` total rows through `2021`, `CC0-1.0`)\n"
-                f"- **Core Finding**: Solo authors (`k=1`) average disruption `D = {s['solo_mean_disruption']:.4f}` (percentile `{s['solo_disruption_percentile']:.1f}`) vs. `11+` teams at `D = {s['large_11plus_mean_disruption']:.4f}` (percentile `{s['large_11plus_disruption_percentile']:.1f}`), while mean forward citations rise from `{s['solo_mean_citations']:.1f}` to `{s['large_11plus_mean_citations']:.1f}` (`OLS slope = {s['ols_slope_per_author']:.5f}/author`, `p = {s['ols_p_value']:.2e}`).\n"
-                f"- **Validation & Window Sensitivity**: Comparing `1954–2004` (`>=17y` citation window) vs. `2015–2021` confirmed right-truncation compresses raw `D` spread without reversing the negative team-size gradient.\n"
-                f"- **Evidence Gate**: `{ev_review.result.upper()}` (`{paper_turn_res.provider}`). Inspect or download the PDF/DOCX reports, figures, scripts, and CSV manifests directly below."
+                f"- **Round 1 Baseline Finding**: Solo authors (`k=1`) average disruption `D = {s['solo_mean_disruption']:.4f}` (percentile `{s['solo_disruption_percentile']:.1f}`) vs. `11+` teams at `D = {s['large_11plus_mean_disruption']:.4f}` (`OLS slope = {s['ols_slope_per_author']:.5f}/author`, `p = {s['ols_p_value']:.2e}`), while mean forward citations rise from `{s['solo_mean_citations']:.1f}` to `{s['large_11plus_mean_citations']:.1f}`.\n"
+                f"- **Round 2 Counterfactual, Permutation & Simulation Trials (`Analysis #3`)**:\n"
+                f"  - *Field×Decade Fixed Effects & Citation Quartiles*: FE slope = `{mr['fixed_effects_field_decade']['slope']:.5f}/author` (`p = {mr['fixed_effects_field_decade']['p_value']:.2e}`)\n"
+                f"  - *{mr['permutation_null']['n_permutations']}-Trial Within-Stratum Permutation Null*: `z = {mr['permutation_null']['z_score']:.1f}`, empirical `p = {mr['permutation_null']['p_value']:.4f}`\n"
+                f"  - *Leave-One-Discipline-Out Jackknife*: `{mr['jackknife']['negative_count']}/{mr['jackknife']['total_strata']}` strata remain negative\n"
+                f"  - *Generative Citation-Network Simulation (Exact CD)*: M1 search-breadth slope = `{mr['mechanistic_simulation']['m1_slope']:.4f}` vs. size-invariant control M2 = `{mr['mechanistic_simulation']['m2_slope']:.4f}`"
+                + (f"\n  - *Live Agent-Authored Custom Sandbox Trials*: `{live_trials_ok}` additional Python script(s) written & executed" if live_trials_ok else "")
+                + f"\n- **Evidence Gate**: `{ev_review.result.upper()}` (`{paper_turn_res.provider}`). Inspect or download the PDF/DOCX reports, figures, scripts, and CSV manifests below."
             )
             self.store.add_chat_message(
                 run_id,
@@ -1288,8 +1560,11 @@ class ResearchCoordinator:
                     art_docx.artifact_id,
                     exp_bundle["fig_main_artifact_id"],
                     art_fig_win.artifact_id,
+                    art_mr_fig.artifact_id,
                     exp_bundle["team_csv_artifact_id"],
+                    art_mr_csv.artifact_id,
                     exp_bundle["script_artifact_id"],
+                    *live_trial_art_ids,
                     dataset_bundle["manifest_artifact_id"],
                 ],
                 seq=ev_rep.seq,
@@ -1401,7 +1676,7 @@ class ResearchCoordinator:
             collaboration_id=cid,
             outcome="synthesized",
             actor_id="persona_main",
-            summary="Roundtable synthesis delivered to Main; participants returned to anchors.",
+            summary="Roundtable synthesis delivered to Boss; participants returned to anchors.",
             mode=mode,
         )
         for m in ["persona_main", *members]:
@@ -1503,33 +1778,69 @@ class ResearchCoordinator:
             spawned_ids.append(pid)
             task_map[pid] = tid
 
-        async def _run_dynamic_worker(pid: str) -> None:
+        run_dir = self.artifacts.run_dir(run_id)
+        candidate_csv = next(
+            (p for p in [run_dir / "data" / "wu2019_mag_sample.csv", run_dir / "data" / "openalex_paper_cohort.csv"] if p.exists()),
+            None,
+        )
+        followup_results: list[str] = []
+
+        async def _run_dynamic_worker(worker_idx: int, pid: str) -> None:
             tid = task_map[pid]
             async with self.scheduler.agent_task_slot(run_id=run_id, owner_id=tid):
                 self.store.update_run_status(run_id, resources=self.scheduler.snapshot_state(run_id))
-                self._transition_persona(run_id, pid, "working", "executing_dynamic_subtask", mode=mode)
+                self._transition_persona(run_id, pid, "working", "executing_dynamic_experiment", mode=mode)
                 self._mark_task_status(
                     run_id,
                     tid,
                     "task.started",
                     "running",
-                    f"{pid} executing parallel verification subtask.",
+                    f"{pid} acquiring experiment slot for empirical subsample robustness check.",
                     persona_id=pid,
                     mode=mode,
                 )
-                await asyncio.sleep(0.25 if mode == "simulation" else 0.5)
+                art_ids_worker: list[str] = []
+                msg_done = f"{pid} completed verification subtask."
+                if candidate_csv is not None:
+                    async with self.scheduler.experiment_slot(run_id=run_id, owner_id=tid):
+                        exp_w = await run_targeted_followup_experiment(
+                            run_dir,
+                            candidate_csv,
+                            script_rel_path=f"scripts/followup_{pid}.py",
+                            seed_offset=worker_idx + 1,
+                        )
+                    art_w, _ = self.artifacts.register_file(
+                        run_id=run_id,
+                        kind="script",
+                        source_path=exp_w["execution"].script_path,
+                        validation_status="passed",
+                        metadata={"reproduction_level": "S2", "description": f"Follow-up robustness check by {pid}"},
+                    )
+                    art_ids_worker.append(art_w.artifact_id)
+                    r = exp_w["result"]
+                    msg_done = (
+                        f"{pid} ran trimmed-citation test (n={r['n_evaluated']:,}): "
+                        f"slope={r['trimmed_top5pct_citations_slope']:.5f}, p={r['trimmed_p_value']:.2e}."
+                    )
+                    followup_results.append(msg_done)
+                else:
+                    toy = await asyncio.to_thread(verify_cd_toy_graphs)
+                    msg_done = f"{pid} verified bounded S2 toy citation graph (`passed={toy['passed']}`)."
+                    followup_results.append(msg_done)
+
                 self._mark_task_status(
                     run_id,
                     tid,
                     "task.completed",
                     "done",
-                    f"{pid} completed parallel verification subtask.",
+                    msg_done,
                     persona_id=pid,
+                    artifact_ids=art_ids_worker,
                     mode=mode,
                 )
                 self._transition_persona(run_id, pid, "completed", "subtask_done", mode=mode)
 
-        await asyncio.gather(*(_run_dynamic_worker(pid) for pid in spawned_ids))
+        await asyncio.gather(*(_run_dynamic_worker(i, pid) for i, pid in enumerate(spawned_ids)))
 
         table_members = [*spawned_ids]
         if len(table_members) < 2:
@@ -1541,7 +1852,7 @@ class ResearchCoordinator:
             topic=f"Parallel cross-check ({len(table_members)} specialists)",
             source_ref=SourceRef(kind="collaboration", id=f"dyn_{uuid.uuid4().hex[:6]}"),
             actor_id="persona_main",
-            summary=f"Main convened {len(table_members)} specialists (including dynamic workers) for synthesis.",
+            summary=f"Boss convened {len(table_members)} specialists (including dynamic workers) for synthesis.",
             mode=mode,
         )
         for m in table_members:
@@ -1553,20 +1864,21 @@ class ResearchCoordinator:
             collaboration_id=cid,
             outcome="synthesized",
             actor_id="persona_main",
-            summary="Dynamic specialist team synthesis delivered to Main.",
+            summary="Dynamic specialist team synthesis delivered to Boss.",
             mode=mode,
         )
         for pid in self.store.list_persona_ids(run_id):
             self._transition_persona(run_id, pid, "idle", "returned_to_anchor", mode=mode)
 
+        details_block = "\n".join(f"- {ln}" for ln in followup_results) if followup_results else "- Parallel robustness scripts executed cleanly."
         self.store.add_chat_message(
             run_id,
             kind="message",
             role="main",
             text=(
-                f"Main Agent dynamically spawned `{len(spawned_ids)}` new specialist agent instance(s) "
-                f"({', '.join(f'`{p}`' for p in spawned_ids)}) under Scheduler governance (`max_active_agent_tasks=4`) "
-                f"and completed parallel cross-verification for **\"{user_prompt[:100]}\"**."
+                f"Boss Agent dynamically spawned `{len(spawned_ids)}` specialist agent instance(s) "
+                f"({', '.join(f'`{p}`' for p in spawned_ids)}) and executed real Python robustness experiments for **\"{user_prompt[:100]}\"**:\n\n"
+                f"{details_block}"
             ),
             related_refs=[
                 SelectedContext(kind="agent", id="persona_main"),

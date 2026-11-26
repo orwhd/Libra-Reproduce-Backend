@@ -21,6 +21,7 @@ build/
 *.sqlite-shm
 *.sqlite-wal
 data/runtime/
+outputs/latest_run/
 
 # OS metadata
 .DS_Store

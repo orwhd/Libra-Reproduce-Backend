@@ -6,9 +6,11 @@
 1. **Integrated Fullstack Mode** inside `Coding_test` (`http://127.0.0.1:5173` + `http://127.0.0.1:8000`), preserving Project 1 (`Data` mode) and the completed `Upload Papers to Reproduce` homepage (`Reproduce` mode) with zero regressions.
 2. **Standalone Backend-Only Mode & Independent Git Repository** (`/Users/zhich/Documents/项目/HCI/Libra-Reproduce-Backend`), exposing the exact OpenAPI 3.1 V2 HTTP+SSE service (`uvicorn libra_reproduce.main:app`) and headless CLI (`uv run python -m libra_reproduce.cli ...`) with zero frontend or Project 1 runtime coupling.
 
+- **Project Status Note**: This repository packages the **pure-backend deliverable** for WHALES Lab Coding Test Project 2 (`libra_reproduce` + `contracts/` + `data/samples/` + `outputs/nature2019_live_verified/` + `design/project2_system_architecture.pdf`), decoupled from any web frontend (`Boss`, `Paper`, `Data`, `Analysis`, `Validation`, `Support` persona roster).
+
 ---
 
-## 1. Repository Reconnaissance (Verified Ground Truth)
+## 1. Standalone Backend Architecture & Contracts
 
 ### 1.1 Existing Frontend (`Coding_test/frontend/`)
 - **Stack**: `react@^19.0.0`, `react-dom@^19.0.0`, `typescript@~5.6.2`, `vite@^6.0.0`, `lucide-react@^0.460.0`, `react-markdown@^10.1.0`, `remark-gfm@^4.0.1`, `@playwright/test@^1.50.0`.

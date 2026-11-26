@@ -36,7 +36,8 @@ class SDKAdapter:
       * Custom in-process MCP server (`create_sdk_mcp_server("science", ...)`)
       * `tools=[]` and `disallowed_tools=DISALLOWED_SDK_BUILTIN_TOOLS` so built-in Bash/Write/Read/Task/Agent tools cannot bypass `ResourceScheduler` or `ToolPermissionGate`
       * Explicit `can_use_tool` permission callback backed by `ToolPermissionGate`
-    - Secondary LIVE engine: OpenAI-compatible function-calling loop (`AsyncOpenAI`, e.g. user-configured DeepSeek/OpenAI key) enforcing the exact same `ToolPermissionGate` & science handlers when Claude CLI/Anthropic auth is unavailable on a reviewer's machine.
+      * Configurable deep thinking (`effort="high"`) & multi-turn tool iteration (`max_turns >= 6`)
+    - Secondary LIVE engine: OpenAI-compatible function-calling loop (`AsyncOpenAI`) enforcing the exact same `ToolPermissionGate` & science handlers when Claude CLI/Anthropic auth is unavailable.
     - Simulation engine: deterministic offline turn (ONLY allowed when `mode == "simulation"`).
     Never exposes private `ThinkingBlock` / reasoning text.
     """
@@ -69,13 +70,18 @@ class SDKAdapter:
         user_prompt: str,
         tools_spec: list[dict[str, Any]],
         handlers: dict[str, ScienceToolHandler],
-        max_turns: int = 4,
+        max_turns: int = 6,
+        timeout_seconds: float = 110.0,
+        effort: str | None = None,
     ) -> AgentTurnResult:
         if mode == "simulation":
             return await self._run_simulation_turn(role=role, handlers=handlers, tools_spec=tools_spec)
 
         cfg = resolve_llm_runtime_config()
         forced = cfg["forced_provider"]
+        eff = (effort or cfg.get("thinking_effort") or "high").strip().lower()
+        if eff not in ("low", "medium", "high"):
+            eff = "high"
         errors: list[str] = []
 
         try_claude = forced in ("", "claude") and (cfg["has_claude_cli"] or cfg["has_anthropic_key"])
@@ -88,8 +94,9 @@ class SDKAdapter:
                         tools_spec=tools_spec,
                         handlers=handlers,
                         max_turns=max_turns,
+                        effort=eff,
                     ),
-                    timeout=75.0,
+                    timeout=timeout_seconds,
                 )
                 if res.ok:
                     return res
@@ -108,7 +115,7 @@ class SDKAdapter:
                         handlers=handlers,
                         max_turns=max_turns,
                     ),
-                    timeout=75.0,
+                    timeout=timeout_seconds,
                 )
                 if res_oa.ok:
                     return res_oa
@@ -132,6 +139,7 @@ class SDKAdapter:
         tools_spec: list[dict[str, Any]],
         handlers: dict[str, ScienceToolHandler],
         max_turns: int,
+        effort: str,
     ) -> AgentTurnResult:
         import claude_agent_sdk as sdk
 
@@ -150,7 +158,27 @@ class SDKAdapter:
             def _make_tool(bound_name: str, bound_desc: str, bound_schema: dict[str, Any], bound_fn: ScienceToolHandler):
                 @sdk.tool(bound_name, bound_desc, bound_schema)
                 async def _wrapped(args: dict[str, Any]) -> dict[str, Any]:
-                    self.gate.authorize_tool_call(bound_name, args)
+                    try:
+                        self.gate.authorize_tool_call(bound_name, args)
+                    except ToolPermissionDeniedError as exc:
+                        traces.append(
+                            {
+                                "tool": bound_name,
+                                "provider": "claude-agent-sdk==0.2.189",
+                                "args": redact_secrets(args),
+                                "status": "denied",
+                                "error": str(exc),
+                            }
+                        )
+                        return {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": json.dumps({"ok": False, "blocked": True, "error": str(exc)}),
+                                }
+                            ]
+                        }
+
                     result = await bound_fn(args)
                     safe_res = redact_secrets(result)
                     traces.append(
@@ -158,7 +186,7 @@ class SDKAdapter:
                             "tool": bound_name,
                             "provider": "claude-agent-sdk==0.2.189",
                             "args": redact_secrets(args),
-                            "status": "ok",
+                            "status": "ok" if not (isinstance(result, dict) and result.get("ok") is False) else "error",
                             "result_keys": sorted(result.keys()) if isinstance(result, dict) else [],
                         }
                     )
@@ -197,10 +225,11 @@ class SDKAdapter:
             disallowed_tools=list(DISALLOWED_SDK_BUILTIN_TOOLS),
             can_use_tool=_can_use_tool,
             max_turns=max_turns,
+            effort=effort,  # type: ignore[arg-type]
             cwd=str(sdk_cwd),
             system_prompt=(
                 f"{system_prompt}\n"
-                "Provide concise, factual scientific summaries suitable for public research logs. "
+                "Provide concise, rigorous, evidence-grounded summaries suitable for public research logs. "
                 "Never include private chain-of-thought."
             ),
         )
@@ -263,7 +292,7 @@ class SDKAdapter:
                 model=cfg["openai_model"],
                 messages=messages,
                 tools=oa_tools if oa_tools else None,
-                max_tokens=1024,
+                max_tokens=2400,
             )
             choice = resp.choices[0].message
             tool_calls = getattr(choice, "tool_calls", None) or []
@@ -294,16 +323,19 @@ class SDKAdapter:
                     parsed_args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     parsed_args = {}
-                self.gate.authorize_tool_call(fn_name, parsed_args)
-                handler = handlers[fn_name]
-                result = await handler(parsed_args)
+                try:
+                    self.gate.authorize_tool_call(fn_name, parsed_args)
+                    handler = handlers[fn_name]
+                    result = await handler(parsed_args)
+                except ToolPermissionDeniedError as exc:
+                    result = {"ok": False, "blocked": True, "error": str(exc)}
                 safe_res = redact_secrets(result)
                 traces.append(
                     {
                         "tool": fn_name,
                         "provider": f"openai_compatible:{cfg['openai_model']}",
                         "args": redact_secrets(parsed_args),
-                        "status": "ok",
+                        "status": "ok" if not (isinstance(result, dict) and result.get("ok") is False) else "error",
                     }
                 )
                 messages.append(

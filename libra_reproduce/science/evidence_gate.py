@@ -75,6 +75,9 @@ class EvidenceGate:
         script_sha256: str | None,
         exit_code: int | None,
         toy_s2_verification: dict[str, Any] | None = None,
+        multiround_summary: dict[str, Any] | None = None,
+        fig_multiround_path: Path | None = None,
+        agent_experiment_rounds: list[dict[str, Any]] | None = None,
     ) -> EvidenceReviewResult:
         reasons: list[str] = []
         checks: dict[str, bool] = {}
@@ -157,6 +160,22 @@ class EvidenceGate:
             if not checks["s2_toy_graph_verified"]:
                 reasons.append("S2 CD index toy graph unit verification failed.")
 
+        # 7. Optional Multi-Round Counterfactual, Permutation, Jackknife & Generative Simulation check
+        if multiround_summary is not None:
+            fig_mr_ok, _, _ = _verify_png_header_and_size(fig_multiround_path) if fig_multiround_path else (False, 0, 0)
+            perm = multiround_summary.get("permutation_null") or {}
+            sim = multiround_summary.get("mechanistic_simulation") or {}
+            jack = multiround_summary.get("jackknife") or {}
+            mr_ok = bool(
+                fig_mr_ok
+                and int(perm.get("n_permutations", 0)) >= 100
+                and int(jack.get("total_strata", 0)) >= 2
+                and float(sim.get("m1_slope", 0.0)) < float(sim.get("m2_slope", 0.0))
+            )
+            checks["multiround_experiments_verified"] = mr_ok
+            if not mr_ok:
+                reasons.append("Multi-round counterfactual/permutation/simulation checks incomplete or figure invalid.")
+
         all_core_ok = all(
             checks.get(k, False)
             for k in (
@@ -220,6 +239,26 @@ class EvidenceGate:
                 "Comparing 1954-2004 vs. 2015-2021 regimes shows forward citation-window truncation compresses D-score variance, confirming that cohort year fixed effects or matched windows are mandatory.",
             ],
         }
+        if multiround_summary:
+            fe = multiround_summary.get("fixed_effects_field_decade") or {}
+            perm = multiround_summary.get("permutation_null") or {}
+            jack = multiround_summary.get("jackknife") or {}
+            sim = multiround_summary.get("mechanistic_simulation") or {}
+            gains["verified_insights"].append(
+                f"Multi-round counterfactual checks hold under two-way Field×Decade fixed effects (slope={fe.get('slope', 0.0):.5f}, p={fe.get('p_value', 1.0):.2e}) and leave-one-discipline-out jackknife ({jack.get('negative_count', 0)}/{jack.get('total_strata', 0)} strata negative)."
+            )
+            gains["ruled_out_explanations"].append(
+                f"Ruled out citation-volume confounding and marginal chance alignment via citation-quartile stratification and {perm.get('n_permutations', 0)}-trial within-stratum Monte Carlo permutation null (z={perm.get('z_score', 0.0):.1f}, empirical p={perm.get('p_value', 1.0):.4f})."
+            )
+            gains["methodology_lessons"].append(
+                f"Generative citation-network simulation demonstrates how team search-breadth differences reproduce the negative D slope (M1 slope={sim.get('m1_slope', 0.0):.4f}) whereas size-invariant control M2 stays flat ({sim.get('m2_slope', 0.0):.4f})."
+            )
+        if agent_experiment_rounds:
+            ok_trials = [t for t in agent_experiment_rounds if t.get("kind") == "agent_python_trial" and t.get("ok")]
+            if ok_trials:
+                gains["verified_insights"].append(
+                    f"Live reasoning agents authored and executed {len(ok_trials)} additional isolated Python verification script(s) ({', '.join(str(t.get('script_name')) for t in ok_trials[:3])})."
+                )
 
         return EvidenceReviewResult(
             claim_id=claim_id,

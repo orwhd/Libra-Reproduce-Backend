@@ -219,17 +219,20 @@ async def test_standalone_openapi_v2_simulation_idempotency_and_sse_resume() -> 
         ]
         assert [e["seq"] for e in resumed_events] == list(range(6, len(events_all) + 1))
 
-        # Verify initial 6 role classes expanded dynamically via Main Agent multi-instance spawning
+        # Verify initial 6 role classes expanded dynamically via Main Agent multi-instance spawning + multi-round experiments
         snap_end = (await client.get(f"/api/runs/{run_id}/snapshot")).json()
         validate(snap_end["canvas"], canvas_schema)
         personas_end = snap_end["canvas"]["personas"]
-        assert len(personas_end) >= 9
+        assert len(personas_end) >= 10
         assert sum(1 for p in personas_end if p["is_main"]) == 1
-        assert sum(1 for p in personas_end if p["role"] == "analysis") >= 2
+        assert sum(1 for p in personas_end if p["role"] == "analysis") >= 3
         assert sum(1 for p in personas_end if p["role"] == "data") >= 2
         assert all(p["state"] == "idle" for p in personas_end)
+        assert snap_end["evidence"][-1]["details"]["checks"].get("multiround_experiments_verified") is True
+        arts = (await client.get(f"/api/runs/{run_id}/artifacts-detail")).json()
+        assert any(a["filename"] == "figure_multiround_experiments.png" and a["validation_status"] == "passed" for a in arts)
 
-        # User follow-up requesting dynamic spawning of additional specialist instances
+        # User follow-up requesting dynamic spawning runs real isolated Python experiments
         dyn_resp = await client.post(
             f"/api/runs/{run_id}/chat",
             json={
@@ -246,7 +249,7 @@ async def test_standalone_openapi_v2_simulation_idempotency_and_sse_resume() -> 
             await asyncio.sleep(0.1)
         assert cur2["status"] == "completed"
         snap_after_dyn = (await client.get(f"/api/runs/{run_id}/snapshot")).json()
-        assert sum(1 for p in snap_after_dyn["canvas"]["personas"] if p["role"] == "analysis") >= 4
+        assert sum(1 for p in snap_after_dyn["canvas"]["personas"] if p["role"] == "analysis") >= 5
 
         rep_status = (await client.get(f"/api/runs/{run_id}/report")).json()
         assert rep_status["status"] == "ready"

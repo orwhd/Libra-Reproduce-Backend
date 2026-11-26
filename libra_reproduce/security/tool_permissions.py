@@ -36,12 +36,18 @@ ALLOWED_SCIENCE_TOOL_NAMES: frozenset[str] = frozenset(
         "run_citation_window_sensitivity",
         "audit_evidence_gate",
         "build_reproduction_reports",
+        "inspect_workspace_data",
+        "run_python_experiment",
+        "record_experiment_finding",
         "mcp__science__inspect_paper_scope",
         "mcp__science__load_verified_dataset",
         "mcp__science__run_team_size_experiment",
         "mcp__science__run_citation_window_sensitivity",
         "mcp__science__audit_evidence_gate",
         "mcp__science__build_reproduction_reports",
+        "mcp__science__inspect_workspace_data",
+        "mcp__science__run_python_experiment",
+        "mcp__science__record_experiment_finding",
     }
 )
 

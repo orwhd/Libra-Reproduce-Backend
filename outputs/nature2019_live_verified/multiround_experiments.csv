@@ -1,0 +1,15 @@
+round_id,condition,metric,value,extra
+2A_citation_quartile,Q1 Low,ols_slope,-0.001363,n=11334
+2A_citation_quartile,Q2 Mid-Low,ols_slope,-0.001182,n=11334
+2A_citation_quartile,Q3 Mid-High,ols_slope,-0.001445,n=11333
+2A_citation_quartile,Q4 Top,ols_slope,-0.002782,n=11334
+2B_permutation_null,n_perm=200,observed_slope_vs_null_z,-6.369,p_perm=0.00498
+2C_jackknife,drop=Biology,ols_slope,-0.002171,n=35522
+2C_jackknife,drop=Mathematics,ols_slope,-0.001261,n=36059
+2C_jackknife,drop=Materials Science,ols_slope,-0.002007,n=37140
+2C_jackknife,drop=Chemistry,ols_slope,-0.002048,n=39254
+2C_jackknife,drop=Medicine,ols_slope,-0.001959,n=39333
+2C_jackknife,drop=Sociology,ols_slope,-0.001648,n=42315
+2C_jackknife,drop=Geology,ols_slope,-0.001928,n=42387
+2D_mechanistic_sim,M1_differential_breadth,sim_slope,-0.065404,p=6.98e-77
+2D_mechanistic_sim,M2_size_invariant_ctrl,sim_slope,-0.00074,p=8.00e-01

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate WHALES Lab Part II Design Test (Option A) Paper-Style System & Algorithm Figure for Project 2:
+Generate WHALES Lab Part II Design Test (Option A) Paper-Style System & Workflow Figure
+for the Pure-Backend Project 2 Deliverable:
   - design/project2_system_architecture.pdf (vector)
   - design/project2_system_architecture.png (300 DPI)
-Accurately reflects the implemented Reproduce V2 (L1.5 + V1) architecture.
 """
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ def draw_box(
     title_color: str = "#0f172a",
     sub_color: str = "#475569",
     lw: float = 1.35,
-    title_size: float = 9.1,
-    sub_size: float = 7.3,
+    title_size: float = 9.0,
+    sub_size: float = 7.2,
 ) -> None:
     patch = FancyBboxPatch(
         (x, y),
@@ -46,7 +46,7 @@ def draw_box(
     if subtitle:
         ax.text(
             x + w / 2,
-            y + h * 0.72,
+            y + h * 0.74,
             title,
             ha="center",
             va="center",
@@ -58,13 +58,13 @@ def draw_box(
         )
         ax.text(
             x + w / 2,
-            y + h * 0.33,
+            y + h * 0.34,
             subtitle,
             ha="center",
             va="center",
             fontsize=sub_size,
             color=sub_color,
-            linespacing=1.26,
+            linespacing=1.28,
             zorder=4,
             family="DejaVu Sans",
         )
@@ -139,7 +139,7 @@ def draw_arrow(
             label,
             ha="center",
             va="center",
-            fontsize=7.0,
+            fontsize=6.9,
             fontweight="bold",
             color=color,
             bbox={"boxstyle": "round,pad=0.16", "fc": "#ffffff", "ec": "none", "alpha": 0.94},
@@ -158,10 +158,10 @@ def main() -> None:
     ax.text(
         0.5,
         0.968,
-        "Mission-Anchored Scientific Reproduction Harness: Governance, Evidence Gate & Living Observation",
+        "Libra Reproduce Backend: Harness-Governed Multi-Agent Scientific Discovery",
         ha="center",
         va="center",
-        fontsize=13.0,
+        fontsize=13.2,
         fontweight="bold",
         color="#0f172a",
         family="DejaVu Sans",
@@ -169,7 +169,7 @@ def main() -> None:
     ax.text(
         0.5,
         0.942,
-        "WHALES Lab · Project 2 System Architecture (Option A) — Sole Chat Command Path, Dual-Pool Scheduler, Claude SDK MCP Tools, S1/S2 Provenance & Read-Only Living Canvas",
+        "WHALES Lab · Project 2 Architecture (Option A) — Pure-Backend CLI/REST+SSE, Dual-Pool Scheduler, Sandboxed Multi-Round Science & Evidence Gate",
         ha="center",
         va="center",
         fontsize=8.3,
@@ -177,145 +177,150 @@ def main() -> None:
         family="DejaVu Sans",
     )
 
-    # Region A: Researcher & Left Chat
-    draw_region(ax, 0.012, 0.085, 0.212, 0.825, "A. Command & Document Hub (Chat)", "#f8fafc", "#2563eb")
+    # Region A: Pure-Backend Entrypoints & Open Datasets
+    draw_region(ax, 0.012, 0.085, 0.214, 0.825, "A. Backend Entrypoints & Data", "#f8fafc", "#2563eb")
     draw_box(
-        ax, 0.024, 0.735, 0.181, 0.130,
-        "Research Chat Gateway",
-        "POST /api/runs/{id}/chat\n• Sole user write entry\n• (run_id, request_id) idempotent\n• Optional selected_context ref",
+        ax, 0.025, 0.720, 0.188, 0.145,
+        "Headless CLI Runner",
+        "scripts/reproduce_nature2019.py\npython -m libra_reproduce.cli run\n• --mode live | simulation\n• Exports PDF, DOCX, CSV, PNG",
         fc="#eff6ff", ec="#2563eb", title_color="#1d4ed8",
     )
     draw_box(
-        ax, 0.024, 0.545, 0.181, 0.135,
-        "Collapsible Activity & Gain",
-        "• Process timeline (#seq)\n• Evidence Gate verdict\n• 4 Research Gain buckets\n• Dual-pool slot readouts",
-        fc="#ffffff", ec="#475569",
+        ax, 0.025, 0.525, 0.188, 0.150,
+        "OpenAPI 3.1 REST + SSE",
+        "libra_reproduce.main:app\n• POST /api/runs/{id}/chat\n• (run_id, request_id) idempotent\n• SSE ?after=N / Last-Event-ID",
+        fc="#ffffff", ec="#1d4ed8", title_color="#1e40af",
     )
     draw_box(
-        ax, 0.024, 0.335, 0.181, 0.155,
-        "Artifact Cards & Viewer",
-        "Deduplicated by artifact_id:\n• PDF / Word (.docx) Reports\n• PNG Figures (220 DPI)\n• CSV/Parquet + Python scripts\n• In-Chat Viewer (0 Canvas clutter)",
+        ax, 0.025, 0.320, 0.188, 0.160,
+        "Open Empirical Cohort (S1)",
+        "Harvard Dataverse CC0-1.0\n(Wu, Wang & Evans, Nature 2019)\n• N = 60,120 stratified MAG rows\n• 1954–2014 + 2015–2021 cohorts",
         fc="#ecfdf5", ec="#059669", title_color="#047857",
     )
     draw_box(
-        ax, 0.024, 0.115, 0.181, 0.165,
-        "Headless CLI & Standalone API",
-        "libra_reproduce.cli / main:app\nRuns backend-only in separate\nGit repo without frontend;\nregenerates reports from disk",
+        ax, 0.025, 0.115, 0.188, 0.160,
+        "Bounded Graph & Schemas",
+        "• OpenAlex S2 subgraph (5y/10y)\n• SHA-256 data_manifest.json\n• Draft 2020-12 JSON Schemas\n• Read-only ?at_seq=N snapshots",
         fc="#f5f3ff", ec="#7c3aed", title_color="#6d28d9",
     )
 
-    # Region B: Multi-Agent Governance & Controlled Science Execution
-    draw_region(ax, 0.252, 0.315, 0.488, 0.595, "B. Governance Harness, Controlled SDK & Empirical Science", "#fbfdff", "#0f172a")
+    # Region B: Multi-Agent Governance Harness & Sandboxed Execution
+    draw_region(ax, 0.254, 0.315, 0.486, 0.595, "B. Multi-Agent Governance Harness & Isolated Execution", "#fbfdff", "#0f172a")
     draw_box(
-        ax, 0.268, 0.745, 0.212, 0.120,
-        "MainAgentGateway & Coordinator",
-        "Classifies 200 answered vs.\n202 accepted; orchestrates\nPaper/Data/Analysis/Validation",
+        ax, 0.270, 0.740, 0.212, 0.125,
+        "BossAgentGateway & Coordinator",
+        "Classifies 200 answered vs.\n202 accepted; dynamically scales\nBoss / Paper / Data / Analysis / Val",
         fc="#fffbeb", ec="#d97706", title_color="#b45309",
     )
+    # 6 persona role dots clear of the vertical Dispatch arrow (x=0.376)
+    for idx_c, col in enumerate(["#FFD24A", "#FF9FD8", "#7CC8FF", "#4FF5C8", "#FF9A6B", "#B9A6FF"]):
+        circ = Circle((0.402 + idx_c * 0.017, 0.712), 0.006, facecolor=col, edgecolor="#1b1b1f", linewidth=0.95, zorder=5)
+        ax.add_patch(circ)
     draw_box(
-        ax, 0.512, 0.745, 0.212, 0.120,
+        ax, 0.514, 0.740, 0.212, 0.125,
         "Dual-Pool ResourceScheduler",
-        "Pool 1: Active Agent Tasks (<=4)\nPool 2: Parallel Experiments (<=2)\nExploration Pod cap (<=20%)",
+        "Pool 1: Active Agent Tasks (<=4)\nPool 2: Parallel Experiments (<=2)\nExploration Pod budget (<=20%)",
         fc="#fef2f2", ec="#dc2626", title_color="#b91c1c",
     )
     draw_box(
-        ax, 0.268, 0.545, 0.212, 0.130,
-        "ClaudeSDKClient (0.2.189)",
-        "Restricted MCP 'science' tools;\ndisallowed_tools blocks Bash/Write;\ncan_use_tool PermissionGate",
+        ax, 0.270, 0.545, 0.212, 0.135,
+        "Controlled SDKAdapter",
+        "ClaudeSDKClient (0.2.189) MCP\n+ portable OpenAI tool harness\nToolPermissionGate blocks Bash/Edit",
         fc="#eff6ff", ec="#1d4ed8", title_color="#1e40af",
     )
     draw_box(
-        ax, 0.512, 0.545, 0.212, 0.130,
-        "SafeExperimentRunner (-E)",
-        "Isolated Python subprocess;\nAST static check + stripped env\n(0 API keys) + POSIX rlimits",
+        ax, 0.514, 0.545, 0.212, 0.135,
+        "SafeExperimentRunner (-I / -E)",
+        "AST static check (no network/env)\nStripped env (0 API keys) + POSIX\nrlimits & wall-clock timeout",
         fc="#1e293b", ec="#0f172a", title_color="#f8fafc", sub_color="#cbd5e1",
     )
     draw_box(
-        ax, 0.268, 0.340, 0.212, 0.135,
-        "Empirical Science (Nature 2019)",
-        "• S1: Harvard Dataverse CC0 MAG\n  (N=60,120; 1954–2014 + 2015–21)\n• S2: D=(ni-nj)/(ni+nj+nk)\n  toy graph + OpenAlex 5y/10y",
+        ax, 0.270, 0.340, 0.212, 0.145,
+        "Empirical Science (Round 1)",
+        "• S1 team size k=1 vs k>=11 & OLS\n• Within-19-discipline demeaning\n• S2 D=(ni-nj)/(ni+nj+nk) checks",
         fc="#ecfdf5", ec="#059669", title_color="#047857",
     )
     draw_box(
-        ax, 0.512, 0.340, 0.212, 0.135,
-        "Independent Evidence Gate",
-        "Rejects consensus-only claims;\nverifies SHA-256, N conservation,\nPNG headers & S1/S2 honesty\n-> ReportBuilder (PDF + DOCX)",
-        fc="#f5f3ff", ec="#7c3aed", title_color="#6d28d9",
+        ax, 0.514, 0.340, 0.212, 0.145,
+        "Debate -> Pod (Round 2)",
+        "• FWL Field x Decade Fixed Effects\n• Citation-quartile & Jackknife tests\n• Permutation Null (n=200) & DAG sim",
+        fc="#fff7ed", ec="#ea580c", title_color="#c2410c",
     )
 
     # Region C: Append-Only EventStore
-    draw_region(ax, 0.252, 0.085, 0.488, 0.195, "C. Transactional SQLite EventStore & Scoped ArtifactStore", "#f8fafc", "#475569")
+    draw_region(ax, 0.254, 0.085, 0.486, 0.195, "C. Transactional SQLite EventStore & Provenance Ledger", "#f8fafc", "#475569")
     draw_box(
-        ax, 0.268, 0.115, 0.215, 0.115,
+        ax, 0.270, 0.115, 0.214, 0.115,
         "Append-Only Event Ledger",
-        "Single-tx state + HarnessEvent\nUNIQUE(run_id, seq); SSE resume\nvia Last-Event-ID / ?after=N",
+        "Single-tx state + HarnessEvent\nUNIQUE(run_id, seq); secret-redacted\ntool.executed audit traces",
         fc="#ffffff", ec="#334155",
     )
     draw_box(
-        ax, 0.508, 0.115, 0.216, 0.115,
-        "Snapshot & Scoped Artifacts",
-        "RunSnapshot + CanvasProjection\n(?at_seq=N zero-exec replay);\nno raw host paths exposed",
+        ax, 0.510, 0.115, 0.216, 0.115,
+        "Scoped ArtifactStore",
+        "Run-jailed SHA-256 registry;\nsafe download URLs; zero host path\nleakage across API responses",
         fc="#ffffff", ec="#059669",
     )
 
-    # Region D: Read-Only Living Research Canvas
-    draw_region(ax, 0.772, 0.085, 0.216, 0.825, "D. Read-Only Living Research Canvas (L1.5)", "#fbfaf6", "#1b1b1f")
+    # Region D: Independent Verification & Scientific Deliverables
+    draw_region(ax, 0.768, 0.085, 0.220, 0.825, "D. Verification & Deliverables", "#fbfaf6", "#7c3aed")
     draw_box(
-        ax, 0.786, 0.655, 0.188, 0.205,
-        "Initial 6-Persona Roster",
-        "• Frame 1: all 6 personas idle\n  (persona_id != runtime_agent_id)\n• Main fixed at left Boss anchor\n• Subtle 1–2% async breathing\n• Zero permanent graph edges",
-        fc="#ffffff", ec="#1b1b1f",
+        ax, 0.782, 0.665, 0.192, 0.195,
+        "Independent EvidenceGate",
+        "• Rejects consensus-only claims\n• Audits SHA-256 dataset hashes\n• Verifies N conservation & PNGs\n• Enforces honest S1 vs S2 labels",
+        fc="#f5f3ff", ec="#7c3aed", title_color="#6d28d9",
     )
-    # Mini visual illustration of Main + 2/3-4/5-6 hand-drawn table morphing
     draw_box(
-        ax, 0.786, 0.365, 0.188, 0.240,
-        "Temporary Research Tables",
-        "64-pt seeded SVG path morphing:\n• 2 agents -> Rounded Rectangle\n• 3–4 agents -> Circular Table\n• 5–6 agents -> Elliptical Table\n\nErases & returns to home anchors\non collaboration.ended",
-        fc="#fffdf7", ec="#d97706", title_color="#92400e",
+        ax, 0.782, 0.395, 0.192, 0.225,
+        "ReportBuilder (Support Agent)",
+        "Synthesizes publication artifacts:\n• reproduction_report.pdf\n• reproduction_report.docx\n• 4 Research Gain buckets\n  (Verified / Ruled Out / Open / Note)",
+        fc="#ecfdf5", ec="#059669", title_color="#047857",
     )
-    for idx_c, col in enumerate(["#FFD24A", "#FF9FD8", "#7CC8FF", "#4FF5C8", "#FF9A6B", "#B9A6FF"]):
-        circ = Circle((0.808 + idx_c * 0.028, 0.632), 0.0085, facecolor=col, edgecolor="#1b1b1f", linewidth=1.1, zorder=5)
-        ax.add_patch(circ)
-
     draw_box(
-        ax, 0.786, 0.115, 0.188, 0.200,
-        "Observation != Interruption",
-        "• Clicking Agent triggers ZERO\n  body/face reaction & 0 POSTs\n• Silently scrolls Left Chat to\n  existing activity records\n• Explicit SIMULATION / REPLAY\n  badges & WCAG Pause Motion",
+        ax, 0.782, 0.115, 0.192, 0.230,
+        "Reproducible Bundle",
+        "outputs/nature2019_live_verified/\n• Python experiment scripts\n• Intermediate CSVs & manifests\n• 300-DPI PNG figures\n• events.jsonl execution trace",
         fc="#ffffff", ec="#334155",
     )
 
-    # Arrows
-    draw_arrow(ax, (0.205, 0.805), (0.268, 0.805), "ChatCommand", color="#2563eb", ly=0.826)
-    draw_arrow(ax, (0.480, 0.805), (0.512, 0.805), "Lease", color="#dc2626", ly=0.826)
-    draw_arrow(ax, (0.374, 0.745), (0.374, 0.675), "Dispatch", color="#0f172a", lx=0.335)
-    draw_arrow(ax, (0.480, 0.610), (0.512, 0.610), "MCP Tool", color="#1d4ed8", ly=0.630)
-    draw_arrow(ax, (0.374, 0.545), (0.374, 0.475), "Data/S2", color="#059669", lx=0.335)
-    draw_arrow(ax, (0.618, 0.545), (0.618, 0.475), "CSV + PNG", color="#0f172a", lx=0.662)
-    draw_arrow(ax, (0.480, 0.408), (0.512, 0.408), "Verify", color="#7c3aed", ly=0.428)
+    # Flow Arrows
+    draw_arrow(ax, (0.213, 0.795), (0.270, 0.795), "Prompt / Run", color="#2563eb", ly=0.818)
+    draw_arrow(ax, (0.213, 0.600), (0.270, 0.765), "ChatCmd", color="#1d4ed8", lx=0.240, ly=0.695)
+    draw_arrow(ax, (0.213, 0.405), (0.270, 0.405), "CC0 MAG / S2", color="#059669", ly=0.427)
 
-    draw_arrow(ax, (0.374, 0.340), (0.374, 0.230), "Commit Events", color="#334155", lx=0.320)
-    draw_arrow(ax, (0.618, 0.340), (0.618, 0.230), "Reports & Hash", color="#059669", lx=0.672)
+    draw_arrow(ax, (0.482, 0.802), (0.514, 0.802), "Lease", color="#dc2626", ly=0.824)
+    draw_arrow(ax, (0.376, 0.740), (0.376, 0.680), "Dispatch", color="#0f172a", lx=0.340)
+    draw_arrow(ax, (0.482, 0.612), (0.514, 0.612), "MCP Tool", color="#1d4ed8", ly=0.633)
+    draw_arrow(ax, (0.376, 0.545), (0.376, 0.485), "Round 1", color="#059669", lx=0.340)
+    draw_arrow(ax, (0.620, 0.545), (0.620, 0.485), "Round 2 Pod", color="#c2410c", lx=0.664)
+    draw_arrow(ax, (0.482, 0.412), (0.514, 0.412), "Challenge", color="#ea580c", ly=0.433)
 
-    draw_arrow(ax, (0.724, 0.172), (0.786, 0.460), "Read-Only SSE +\nCanvasProjection", color="#1b1b1f", lx=0.755, ly=0.290)
-    draw_arrow(ax, (0.268, 0.172), (0.205, 0.405), "File Cards &\nMessages", color="#059669", lx=0.232, ly=0.275)
-    # Orthogonal bottom-gutter read-only navigation path (zero crossing over interior boxes)
-    pts_nav = [(0.880, 0.115), (0.880, 0.042), (0.114, 0.042), (0.114, 0.085)]
-    ax.plot([p[0] for p in pts_nav[:-1]], [p[1] for p in pts_nav[:-1]], color="#64748b", lw=1.35, ls="--", zorder=5)
+    draw_arrow(ax, (0.376, 0.340), (0.376, 0.230), "Commit Events", color="#334155", lx=0.326)
+    draw_arrow(ax, (0.620, 0.340), (0.620, 0.230), "Artifacts + SHA", color="#059669", lx=0.672)
+
+    draw_arrow(ax, (0.726, 0.412), (0.782, 0.740), "Audit Gate", color="#7c3aed", lx=0.752, ly=0.585)
+    draw_arrow(ax, (0.878, 0.665), (0.878, 0.620), "PASSED", color="#059669", lx=0.910)
+    draw_arrow(ax, (0.878, 0.395), (0.878, 0.345), "Export", color="#334155", lx=0.905)
+    draw_arrow(ax, (0.726, 0.172), (0.782, 0.172), "Ledger", color="#475569", ly=0.194)
+
+    # Bottom orthogonal SSE / Snapshot feedback path
+    pts_nav = [(0.782, 0.135), (0.750, 0.135), (0.750, 0.045), (0.119, 0.045), (0.119, 0.115)]
+    ax.plot([p[0] for p in pts_nav[:-1]], [p[1] for p in pts_nav[:-1]], color="#64748b", lw=1.3, ls="--", zorder=5)
     ax.add_patch(
         FancyArrowPatch(
             pts_nav[-2],
             pts_nav[-1],
             arrowstyle="-|>,head_length=5.5,head_width=3.2",
             color="#64748b",
-            linewidth=1.35,
+            linewidth=1.3,
             linestyle="--",
             zorder=5,
         )
     )
     ax.text(
-        0.500,
-        0.042,
-        "Silent Canvas -> Chat Activity Scroll Only (Zero Body/Face Reaction · Zero Write POSTs)",
+        0.450,
+        0.045,
+        "Resumable SSE Event Stream & Deterministic Replay Snapshots (Zero Re-Execution Read Path)",
         ha="center",
         va="center",
         fontsize=7.2,
