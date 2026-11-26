@@ -2,7 +2,7 @@
 
 Backend multi-agent LLM system for scientific paper reproduction.
 
-## System Architecture
+## Design
 
 ![Project 2 System Architecture](design/project2_system_architecture.png)
 
