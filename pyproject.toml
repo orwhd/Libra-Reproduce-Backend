@@ -1,0 +1,48 @@
+[project]
+name = "libra-reproduce-backend"
+version = "0.2.0"
+description = "WHALES Lab Project 2 — Standalone Multi-Agent Scientific Paper Reproduction Harness (OpenAPI V2 + Headless CLI)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "claude-agent-sdk==0.2.189",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "openai>=1.55.0",
+    "httpx>=0.27.2",
+    "pandas>=2.2.3",
+    "numpy>=2.1.0",
+    "scipy>=1.14.1",
+    "matplotlib>=3.9.2",
+    "pyarrow>=18.0.0",
+    "python-docx>=1.1.2",
+    "reportlab>=4.2.5",
+    "pypdf>=5.0.0",
+    "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.18",
+    "sse-starlette>=2.1.3",
+    "jsonschema>=4.23.0",
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+libra-reproduce = "libra_reproduce.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["libra_reproduce*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
